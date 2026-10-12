@@ -1,0 +1,3 @@
+# Skrip deploy dan konfigurasi cPanel harus berakhiran baris LF (Linux)
+*.sh text eol=lf
+.cpanel.yml text eol=lf

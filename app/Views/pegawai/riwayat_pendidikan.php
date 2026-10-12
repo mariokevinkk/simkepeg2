@@ -1,6 +1,7 @@
 <?= $this->extend('layout/main') ?>
 
 <?= $this->section('content') ?>
+<?php $employeeProfile = $employee_profile ?? \App\Libraries\EmployeeProfileData::get(); ?>
 <style>
     .section-title {
         margin: 32px 0 16px 0;
@@ -50,22 +51,7 @@
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td>1</td>
-                    <td>S-1/Sarjana</td>
-                    <td>Ilmu Keperawatan</td>
-                    <td>Univ Gadjah Mada</td>
-                    <td>Keperawatan</td>
-                    <td>Yogyakarta</td>
-                    <td>IJZ/2007/001</td>
-                    <td>15-08-2007</td>
-                    <td>3.75</td>
-                    <td>Lulus</td>
-                    <td style="white-space: nowrap;">
-                        <a href="#" style="color: var(--primary); margin-right: 8px;" title="Edit"><i class="fa-solid fa-pen"></i></a>
-                        <a href="#" style="color: var(--danger);" title="Hapus"><i class="fa-solid fa-trash"></i></a>
-                    </td>
-                </tr>
+                <?= view('employee_education_rows', ['employee_profile' => $employeeProfile, 'show_actions' => true, 'attachment_mode' => 'edit']) ?>
             </tbody>
         </table>
     </div>

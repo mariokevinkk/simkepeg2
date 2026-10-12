@@ -1,6 +1,7 @@
 <?= $this->extend('layout/main') ?>
 
 <?= $this->section('content') ?>
+<?php $employeeProfile = $employee_profile ?? \App\Libraries\EmployeeProfileData::get(); ?>
 <style>
     .section-title {
         margin: 32px 0 16px 0;
@@ -77,5 +78,6 @@
         <thead><tr><th>NO</th><th>NAMA</th><th>STATUS KELUARGA</th><th>TEMPAT, TGL LAHIR</th><th>STATUS PERKAWINAN</th><th>TGL PERNIKAHAN</th><th>PEKERJAAN</th><th>NIP/NRP</th><th>KET</th><th>AKSI</th></tr></thead>
         <tbody><tr><td colspan="10" style="text-align: center; color: var(--text-muted); padding: 16px;">Tidak ada data</td></tr></tbody>
     </table>
+    <?= view('employee_attachment_group', ['employee_profile' => $employeeProfile, 'document_group' => 'keluarga', 'document_mode' => 'edit']) ?>
 </div>
 <?= $this->endSection() ?>

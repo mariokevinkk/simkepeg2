@@ -1,6 +1,13 @@
 <?= $this->extend('layout/main') ?>
 
 <?= $this->section('content') ?>
+<?php
+$employeeProfile = $employee_profile ?? \App\Libraries\EmployeeProfileData::get();
+$employee = $employeeProfile['pegawai'];
+$career = $employeeProfile['karir'];
+$profession = $employeeProfile['profesi'];
+$education = $employeeProfile['pendidikan'][0] ?? [];
+?>
 <style>
     .section-title {
         margin: 32px 0 16px 0;
@@ -26,39 +33,39 @@
 <div class="main-card" style="padding: 32px; margin-bottom: 32px;">
     <h4 class="section-title"><i class="fa-regular fa-id-card"></i> A. Data Pribadi</h4>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
-        <!-- 1 & 2 -->
-        <div><label class="form-label">NIP</label><input type="text" class="form-control" value="198501012010011001" /></div>
-        <div><label class="form-label">NIK</label><input type="text" class="form-control" value="3471101010850001" /></div>
+        <div><label class="form-label">NIP Lama</label><input type="text" class="form-control" value="<?= esc($employee['nip_lama']) ?>" /></div>
+        <div><label class="form-label">NIP</label><input type="text" class="form-control" value="<?= esc($employee['nip']) ?>" /></div>
+        <div><label class="form-label">NIK</label><input type="text" class="form-control" value="<?= esc($employee['nik']) ?>" /></div>
         
         <!-- 3, 4, 5 -->
         <div style="grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 24px;">
-            <div><label class="form-label">Gelar Depan</label><input type="text" class="form-control" /></div>
-            <div><label class="form-label">Nama Pegawai</label><input type="text" class="form-control" value="Ahmad Hidayat" /></div>
-            <div><label class="form-label">Gelar Belakang</label><input type="text" class="form-control" value="S.Kep., Ns." /></div>
+            <div><label class="form-label">Gelar Depan</label><input type="text" class="form-control" value="<?= esc($employee['gelar_depan']) ?>" /></div>
+            <div><label class="form-label">Nama Pegawai</label><input type="text" class="form-control" value="<?= esc($employee['nama']) ?>" /></div>
+            <div><label class="form-label">Gelar Belakang</label><input type="text" class="form-control" value="<?= esc($employee['gelar_belakang']) ?>" /></div>
         </div>
 
         <!-- 6, 7 -->
-        <div><label class="form-label">Tempat Lahir</label><input type="text" class="form-control" value="Yogyakarta" /></div>
-        <div><label class="form-label">Tanggal Lahir</label><input type="date" class="form-control" value="1985-01-01" /></div>
+        <div><label class="form-label">Tempat Lahir</label><input type="text" class="form-control" value="<?= esc($employee['tempat_lahir']) ?>" /></div>
+        <div><label class="form-label">Tanggal Lahir</label><input type="date" class="form-control" value="<?= esc($employee['tanggal_lahir']) ?>" /></div>
         
         <!-- 8, 9, 11 -->
         <div>
             <label class="form-label">Jenis Kelamin</label>
             <select class="form-control">
-                <option selected>Laki-laki</option><option>Perempuan</option>
+                <option <?= $employee['jenis_kelamin'] === 'Laki-laki' ? 'selected' : '' ?>>Laki-laki</option><option <?= $employee['jenis_kelamin'] === 'Perempuan' ? 'selected' : '' ?>>Perempuan</option>
             </select>
         </div>
         <div>
             <label class="form-label">Agama</label>
             <select class="form-control">
-                <option selected>Islam</option><option>Katolik</option><option>Kristen</option>
-                <option>Hindu</option><option>Budha</option><option>Lainnya</option>
+                <option <?= $employee['agama'] === 'Islam' ? 'selected' : '' ?>>Islam</option><option <?= $employee['agama'] === 'Katolik' ? 'selected' : '' ?>>Katolik</option><option <?= $employee['agama'] === 'Kristen' ? 'selected' : '' ?>>Kristen</option>
+                <option <?= $employee['agama'] === 'Hindu' ? 'selected' : '' ?>>Hindu</option><option <?= $employee['agama'] === 'Buddha' ? 'selected' : '' ?>>Buddha</option><option <?= $employee['agama'] === 'Konghucu' ? 'selected' : '' ?>>Konghucu</option>
             </select>
         </div>
         <div>
             <label class="form-label">Status Perkawinan</label>
             <select class="form-control">
-                <option selected>Nikah</option><option>Belum Nikah</option><option>Cerai Hidup</option><option>Cerai Mati</option>
+                <option <?= $employee['status_perkawinan'] === 'Kawin' ? 'selected' : '' ?>>Kawin</option><option <?= $employee['status_perkawinan'] === 'Belum Kawin' ? 'selected' : '' ?>>Belum Kawin</option><option <?= $employee['status_perkawinan'] === 'Cerai Hidup' ? 'selected' : '' ?>>Cerai Hidup</option><option <?= $employee['status_perkawinan'] === 'Cerai Mati' ? 'selected' : '' ?>>Cerai Mati</option>
             </select>
         </div>
         
@@ -67,58 +74,68 @@
             <label class="form-label">Status Kepegawaian</label>
             <select class="form-control">
                 <optgroup label="ASN">
-                    <option selected>PNS</option><option>CPNS</option><option>PPPK</option><option>PPPK Paruh Waktu</option>
+                    <option <?= $employee['jenis_kepegawaian'] === 'PNS' ? 'selected' : '' ?>>PNS</option><option <?= $employee['jenis_kepegawaian'] === 'CPNS' ? 'selected' : '' ?>>CPNS</option><option <?= $employee['jenis_kepegawaian'] === 'PPPK' ? 'selected' : '' ?>>PPPK</option><option <?= $employee['jenis_kepegawaian'] === 'PPPK Paruh Waktu' ? 'selected' : '' ?>>PPPK Paruh Waktu</option>
                 </optgroup>
                 <optgroup label="BLUD">
-                    <option>BLUD Tetap</option><option>BLUD Kontrak</option>
+                    <option <?= $employee['jenis_kepegawaian'] === 'BLUD Tetap' ? 'selected' : '' ?>>BLUD Tetap</option><option <?= $employee['jenis_kepegawaian'] === 'BLUD Kontrak' ? 'selected' : '' ?>>BLUD Kontrak</option>
                 </optgroup>
                 <optgroup label="Mitra">
-                    <option>Mitra Penuh Waktu</option><option>Mitra Paruh Waktu</option>
+                    <option <?= $employee['jenis_kepegawaian'] === 'Mitra Penuh Waktu' ? 'selected' : '' ?>>Mitra Penuh Waktu</option><option <?= $employee['jenis_kepegawaian'] === 'Mitra Paruh Waktu' ? 'selected' : '' ?>>Mitra Paruh Waktu</option>
                 </optgroup>
             </select>
         </div>
+        <div><label class="form-label">Status Pegawai</label><input type="text" class="form-control" value="<?= esc($employee['status']) ?>" /></div>
+        <div><label class="form-label">Kedudukan Pegawai</label><input type="text" class="form-control" value="<?= esc($employee['kedudukan']) ?>" /></div>
     </div>
 
     <h4 class="section-title"><i class="fa-solid fa-map-location-dot"></i> B. Kontak & Alamat</h4>
     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 24px;">
         <!-- 12. Alamat -->
-        <div style="grid-column: 1 / -1;"><label class="form-label">Jalan / Pedukuhan</label><input type="text" class="form-control" value="Jl. Kaliurang Km 5.5" /></div>
-        <div><label class="form-label">RT / RW</label><input type="text" class="form-control" placeholder="001/002" value="005/002" /></div>
-        <div><label class="form-label">Desa / Kelurahan</label><input type="text" class="form-control" value="Caturtunggal" /></div>
-        <div><label class="form-label">Kecamatan</label><input type="text" class="form-control" value="Depok" /></div>
-        <div><label class="form-label">Kabupaten</label><input type="text" class="form-control" value="Sleman" /></div>
-        <div><label class="form-label">Provinsi</label><input type="text" class="form-control" value="DI Yogyakarta" /></div>
+        <div style="grid-column: 1 / -1;"><label class="form-label">Jalan / Pedukuhan</label><input type="text" class="form-control" value="<?= esc($employee['jalan']) ?>" /></div>
+        <div><label class="form-label">RT / RW</label><input type="text" class="form-control" placeholder="001/002" value="<?= esc($employee['rt_rw']) ?>" /></div>
+        <div><label class="form-label">Desa / Kelurahan</label><input type="text" class="form-control" value="<?= esc($employee['kelurahan']) ?>" /></div>
+        <div><label class="form-label">Kecamatan</label><input type="text" class="form-control" value="<?= esc($employee['kecamatan']) ?>" /></div>
+        <div><label class="form-label">Kabupaten</label><input type="text" class="form-control" value="<?= esc($employee['kabupaten']) ?>" /></div>
+        <div><label class="form-label">Provinsi</label><input type="text" class="form-control" value="<?= esc($employee['provinsi']) ?>" /></div>
         
         <!-- 13, 14, 15 -->
-        <div><label class="form-label">No. Telepon / HP</label><input type="text" class="form-control" value="081234567890" /></div>
-        <div><label class="form-label">Kontak Darurat</label><input type="text" class="form-control" value="081298765432" /></div>
-        <div><label class="form-label">E-Mail</label><input type="email" class="form-control" value="ahmad.hidayat@example.com" /></div>
+        <div><label class="form-label">No. Telepon / HP</label><input type="text" class="form-control" value="<?= esc($employee['telepon']) ?>" /></div>
+        <div><label class="form-label">Kontak Darurat</label><input type="text" class="form-control" value="<?= esc($employee['telepon_darurat']) ?>" /></div>
+        <div><label class="form-label">E-Mail</label><input type="email" class="form-control" value="<?= esc($employee['email']) ?>" /></div>
+        <div><label class="form-label">No. KARPEG</label><input type="text" class="form-control" value="<?= esc($employee['karpeg']) ?>" /></div>
+        <div><label class="form-label">Kartu ASN Virtual</label><input type="text" class="form-control" value="<?= esc($employee['kartu_asn']) ?>" /></div>
+        <div><label class="form-label">No. ASKES / BPJS</label><input type="text" class="form-control" value="<?= esc($employee['bpjs']) ?>" /></div>
+        <div><label class="form-label">No. Kartu Taspen</label><input type="text" class="form-control" value="<?= esc($employee['taspen']) ?>" /></div>
+        <div><label class="form-label">No. KARIS / KARSU</label><input type="text" class="form-control" value="<?= esc($employee['karis_karsu']) ?>" /></div>
+        <div><label class="form-label">NPWP</label><input type="text" class="form-control" value="<?= esc($employee['npwp']) ?>" /></div>
     </div>
+    <?= view('employee_attachment_group', ['employee_profile' => $employeeProfile, 'document_group' => 'identitas', 'document_mode' => 'edit']) ?>
 
     <h4 class="section-title"><i class="fa-solid fa-file-medical"></i> C. Legalitas Profesi (SIP & STR)</h4>
     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 24px;">
         <!-- SIP -->
-        <div><label class="form-label">No. SIP</label><input type="text" class="form-control" value="SIP/123/2021" /></div>
-        <div><label class="form-label">Tanggal Terbit SIP</label><input type="date" class="form-control" value="2021-01-10" /></div>
+        <div><label class="form-label">No. SIP</label><input type="text" class="form-control" value="<?= esc($profession['sip_nomor']) ?>" /></div>
+        <div><label class="form-label">Tanggal Terbit SIP</label><input type="date" class="form-control" value="<?= esc($profession['sip_terbit']) ?>" /></div>
         <div>
             <label class="form-label">Tanggal Exp / Berlaku SIP</label>
-            <input type="date" class="form-control" value="2026-01-10" />
+            <input type="date" class="form-control" value="<?= esc($profession['sip_berlaku']) ?>" />
             <small style="color: var(--warning); display: block; margin-top: 4px;"><i class="fa-solid fa-circle-exclamation"></i> Segera perbaharui SIP jika < 6 bulan</small>
         </div>
         
         <!-- STR -->
-        <div><label class="form-label">No. STR</label><input type="text" class="form-control" value="STR/987/2021" /></div>
-        <div><label class="form-label">Tanggal Terbit STR</label><input type="date" class="form-control" value="2021-01-15" /></div>
+        <div><label class="form-label">No. STR</label><input type="text" class="form-control" value="<?= esc($profession['str_nomor']) ?>" /></div>
+        <div><label class="form-label">Tanggal Terbit STR</label><input type="date" class="form-control" value="<?= esc($profession['str_terbit']) ?>" /></div>
         <div>
             <label class="form-label">Tanggal Exp / Berlaku STR</label>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="date" class="form-control" value="2026-01-15" />
+                <input type="date" class="form-control" value="<?= esc($profession['str_berlaku']) ?>" />
                 <div style="white-space: nowrap;">
                     <input type="checkbox" id="str_seumur_hidup_pegawai"> <label for="str_seumur_hidup_pegawai">Seumur Hidup</label>
                 </div>
             </div>
         </div>
     </div>
+    <?= view('employee_attachment_group', ['employee_profile' => $employeeProfile, 'document_group' => 'profesi', 'document_mode' => 'edit']) ?>
 
     <h4 class="section-title"><i class="fa-solid fa-user-doctor"></i> D. Ketenagaan & Jabatan</h4>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
@@ -127,13 +144,13 @@
             <label class="form-label">Jenis Ketenagaan</label>
             <select class="form-control">
                 <optgroup label="TENAGA MEDIS">
-                    <option>DOKTER UMUM</option><option>DOKTER GIGI</option>
+                    <option <?= $career['jenis_ketenagaan'] === 'DOKTER UMUM' ? 'selected' : '' ?>>DOKTER UMUM</option><option <?= $career['jenis_ketenagaan'] === 'DOKTER GIGI' ? 'selected' : '' ?>>DOKTER GIGI</option>
                 </optgroup>
                 <optgroup label="TENAGA KESEHATAN">
-                    <option selected>PERAWAT</option><option>KPKL</option>
+                    <option <?= $career['jenis_ketenagaan'] === 'PERAWAT' ? 'selected' : '' ?>>PERAWAT</option><option <?= $career['jenis_ketenagaan'] === 'KPKL' ? 'selected' : '' ?>>KPKL</option>
                 </optgroup>
                 <optgroup label="TENAGA UMUM">
-                    <option>Struktural</option>
+                    <option <?= $career['jenis_ketenagaan'] === 'Struktural' ? 'selected' : '' ?>>Struktural</option>
                 </optgroup>
             </select>
         </div>
@@ -143,7 +160,7 @@
             <label class="form-label">Jabatan & Jenjang</label>
             <select class="form-control">
                 <optgroup label="Jenjang Keahlian">
-                    <option>Ahli Utama</option><option>Ahli Madya</option><option>Ahli Muda</option><option selected>Ahli Pertama</option>
+                <option <?= $career['jenjang_jabatan'] === 'Ahli Utama' ? 'selected' : '' ?>>Ahli Utama</option><option <?= $career['jenjang_jabatan'] === 'Ahli Madya' ? 'selected' : '' ?>>Ahli Madya</option><option <?= $career['jenjang_jabatan'] === 'Ahli Muda' ? 'selected' : '' ?>>Ahli Muda</option><option <?= $career['jenjang_jabatan'] === 'Ahli Pertama' ? 'selected' : '' ?>>Ahli Pertama</option>
                 </optgroup>
                 <optgroup label="Jenjang Ketrampilan">
                     <option>Penyelia</option><option>Mahir</option><option>Terampil</option>
@@ -166,7 +183,7 @@
                 </span>
             </div>
             <div style="position: relative;">
-                <input type="text" class="form-control" value="Penata Muda / IIIa" disabled readonly style="background-color: var(--bg-body); cursor: not-allowed; font-weight: 500; color: var(--text-main); border-color: var(--border);" />
+                <input type="text" class="form-control" value="<?= esc($career['pangkat_nama']) ?>" disabled readonly style="background-color: var(--bg-body); cursor: not-allowed; font-weight: 500; color: var(--text-main); border-color: var(--border);" />
                 <i class="fa-solid fa-lock" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 13px;"></i>
             </div>
             <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 12px; margin-top: 8px; font-size: 12px; line-height: 1.4; color: #1e40af;">
@@ -191,10 +208,19 @@
         <div>
             <label class="form-label">Strata Pendidikan</label>
             <select class="form-control">
-                <option>SD/SMP Sederajat</option><option>SMA Sederajat</option><option>D3</option><option selected>S1</option><option>S2</option>
+            <option <?= $education['tingkat'] === 'SD/SMP Sederajat' ? 'selected' : '' ?>>SD/SMP Sederajat</option><option <?= $education['tingkat'] === 'SMA Sederajat' ? 'selected' : '' ?>>SMA Sederajat</option><option <?= $education['tingkat'] === 'D3' ? 'selected' : '' ?>>D3</option><option <?= $education['tingkat'] === 'S1' ? 'selected' : '' ?>>S1</option><option <?= $education['tingkat'] === 'S2' ? 'selected' : '' ?>>S2</option>
             </select>
         </div>
-        <div><label class="form-label">Nama Sekolah / Perguruan Tinggi</label><input type="text" class="form-control" value="Universitas Gadjah Mada" /></div>
+        <div><label class="form-label">Nama Sekolah / Perguruan Tinggi</label><input type="text" class="form-control" value="<?= esc($education['instansi']) ?>" /></div>
+        <div><label class="form-label">Nama Pendidikan</label><input type="text" class="form-control" value="<?= esc($education['nama']) ?>" /></div>
+        <div><label class="form-label">Fakultas</label><input type="text" class="form-control" value="<?= esc($education['fakultas']) ?>" /></div>
+        <div><label class="form-label">Tempat Pendidikan</label><input type="text" class="form-control" value="<?= esc($education['tempat']) ?>" /></div>
+        <div><label class="form-label">Status Pendidikan</label><input type="text" class="form-control" value="<?= esc($education['status']) ?>" /></div>
+        <div><label class="form-label">Kasek / Rektor / Direktur</label><input type="text" class="form-control" value="<?= esc($education['pejabat']) ?>" /></div>
+        <div><label class="form-label">No. Ijazah</label><input type="text" class="form-control" value="<?= esc($education['nomor_ijazah']) ?>" /></div>
+        <div><label class="form-label">Tanggal Ijazah</label><input type="date" class="form-control" value="<?= esc($education['tanggal_ijazah']) ?>" /></div>
+        <div><label class="form-label">Nilai</label><input type="text" class="form-control" value="<?= esc($education['nilai']) ?>" /></div>
     </div>
+    <?= view('employee_attachment_group', ['employee_profile' => $employeeProfile, 'document_group' => 'pendidikan', 'document_mode' => 'edit']) ?>
 </div>
 <?= $this->endSection() ?>

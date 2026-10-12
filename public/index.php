@@ -47,9 +47,12 @@ if (getcwd() . DIRECTORY_SEPARATOR !== FCPATH) {
  */
 
 // LOAD OUR PATHS CONFIG FILE
-// This is the line that might need to be changed, depending on your folder structure.
-require FCPATH . '../app/Config/Paths.php';
-// ^^^ Change this line if you move your application folder
+// Normally the app sits next to this folder (public/ -> ../app). When the contents of
+// public/ are copied into the hosting's public_html, the app lives in ../simkepeg2/app.
+$pathsFile = is_file(FCPATH . '../app/Config/Paths.php')
+    ? FCPATH . '../app/Config/Paths.php'
+    : FCPATH . '../simkepeg2/app/Config/Paths.php';
+require $pathsFile;
 
 $paths = new Paths();
 

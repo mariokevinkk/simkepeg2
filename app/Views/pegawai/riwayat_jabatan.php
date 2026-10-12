@@ -1,6 +1,10 @@
 <?= $this->extend('layout/main') ?>
 
 <?= $this->section('content') ?>
+<?php
+$employeeProfile = $employee_profile ?? \App\Libraries\EmployeeProfileData::get();
+$career = $employeeProfile['karir'];
+?>
 <style>
     .section-title {
         margin: 32px 0 16px 0;
@@ -52,18 +56,18 @@
                 <tr>
                     <td>1</td>
                     <td>
-                        <b>Analis Sumber Daya Manusia Aparatur Ahli Pertama</b><br>
-                        <span style="font-size: 12px; color: var(--text-muted);">BAGIAN UMUM, RSUD KOTA YOGYAKARTA</span>
+                        <b><?= esc($career['jabatan_nama']) ?></b><br>
+                        <span style="font-size: 12px; color: var(--text-muted);"><?= esc($career['unit_kerja']) ?></span>
                     </td>
                     <td>PENGANGKATAN JABATAN FUNGSIONAL</td>
-                    <td>-</td>
-                    <td>Penata Muda, III/a</td>
+                    <td><?= esc($career['eselon']) ?></td>
+                    <td><?= esc($career['pangkat_nama']) ?></td>
                     <td>4.498</td>
                     <td>
-                        101/Pem.D/BP/D.4/XII/2023<br>
-                        <span style="font-size: 12px; color: var(--text-muted);">27-12-2023, WALI KOTA YOGYAKARTA</span>
+                        <?= esc($career['jabatan_nomor']) ?><br>
+                        <span style="font-size: 12px; color: var(--text-muted);"><?= date('d-m-Y', strtotime($career['jabatan_tanggal'])) ?>, <?= esc(strtoupper($career['jabatan_pejabat'])) ?></span>
                     </td>
-                    <td>27-12-2023</td>
+                    <td><?= date('d-m-Y', strtotime($career['jabatan_tmt'])) ?></td>
                     <td style="white-space: nowrap;">
                         <a href="#" style="color: var(--primary); margin-right: 8px;" title="Edit"><i class="fa-solid fa-pen"></i></a>
                         <a href="#" style="color: var(--danger);" title="Hapus"><i class="fa-solid fa-trash"></i></a>
@@ -120,5 +124,6 @@
             </tbody>
         </table>
     </div>
+    <?= view('employee_attachment_group', ['employee_profile' => $employeeProfile, 'document_group' => 'jabatan', 'document_mode' => 'edit']) ?>
 </div>
 <?= $this->endSection() ?>

@@ -124,3 +124,6 @@ _modules/*
 
 /results/
 /phpunit.xml
+
+# Paket hosting (berisi kredensial awal)
+dist/

@@ -1,382 +1,304 @@
 <?= $this->extend('layout/main') ?>
-
 <?= $this->section('content') ?>
 <?php
-$selectedBangsal = isset($filter_bangsal) && $filter_bangsal !== '' ? $filter_bangsal : '';
-if (empty($selectedBangsal) && isset($role) && $role === 'admin') {
-    $selectedBangsal = 'Bangsal Anggrek';
+$count = static fn (string $key): int => (int) ($employmentCounts[$key] ?? 0);
+$percent = static fn (int $value, int $total): int => $total > 0 ? (int) round(($value / $total) * 100) : 0;
+$total = (int) $employee_count;
+$asnCount = $count('cpns') + $count('pns') + $count('pppk_full') + $count('pppk_part');
+$bludCount = $count('blud_permanent') + $count('blud_contract');
+$mitraCount = $count('mitra_full') + $count('mitra_part');
+$otherCount = $count('other');
+$summaryGroups = [
+    [
+        'title' => 'Total ASN',
+        'total' => $asnCount,
+        'share' => $percent($asnCount, $total),
+        'icon' => 'fa-user-tie',
+        'icon_color' => 'icon-green',
+        'badge_color' => 'perc-green',
+        'dot_color' => '#10b981',
+        'rows' => [
+            ['label' => 'CPNS', 'count' => $count('cpns')],
+            ['label' => 'PNS', 'count' => $count('pns')],
+            ['label' => 'PPPK (Penuh)', 'count' => $count('pppk_full')],
+            ['label' => 'PPPK (Paruh)', 'count' => $count('pppk_part')],
+        ],
+    ],
+    [
+        'title' => 'Total BLUD',
+        'total' => $bludCount,
+        'share' => $percent($bludCount, $total),
+        'icon' => 'fa-user-doctor',
+        'icon_color' => 'icon-purple',
+        'badge_color' => 'perc-purple',
+        'dot_color' => '#9333ea',
+        'rows' => [
+            ['label' => 'Tetap', 'count' => $count('blud_permanent')],
+            ['label' => 'Kontrak', 'count' => $count('blud_contract')],
+        ],
+    ],
+    [
+        'title' => 'Total Mitra',
+        'total' => $mitraCount,
+        'share' => $percent($mitraCount, $total),
+        'icon' => 'fa-handshake',
+        'icon_color' => 'icon-orange',
+        'badge_color' => 'perc-orange',
+        'dot_color' => '#f59e0b',
+        'rows' => [
+            ['label' => 'Penuh Waktu', 'count' => $count('mitra_full')],
+            ['label' => 'Paruh Waktu', 'count' => $count('mitra_part')],
+        ],
+    ],
+];
+$chartLabels = ['CPNS', 'PNS', 'PPPK (Penuh)', 'PPPK (Paruh)', 'BLUD Tetap', 'BLUD Kontrak', 'Mitra (Penuh)', 'Mitra (Paruh)'];
+$chartValues = [
+    $count('cpns'), $count('pns'), $count('pppk_full'), $count('pppk_part'),
+    $count('blud_permanent'), $count('blud_contract'), $count('mitra_full'), $count('mitra_part'),
+];
+$chartColors = [
+    'rgba(16, 185, 129, 0.9)', 'rgba(16, 185, 129, 0.75)', 'rgba(16, 185, 129, 0.55)', 'rgba(16, 185, 129, 0.35)',
+    'rgba(139, 92, 246, 0.9)', 'rgba(139, 92, 246, 0.65)',
+    'rgba(245, 158, 11, 0.9)', 'rgba(245, 158, 11, 0.6)',
+];
+if ($otherCount > 0) {
+    $chartLabels[] = 'Lainnya';
+    $chartValues[] = $otherCount;
+    $chartColors[] = 'rgba(100, 116, 139, 0.65)';
 }
-
-$isFiltered = $selectedBangsal !== '';
-$isAdmin = $isFiltered;
-
-$total = $isFiltered ? 45 : 600;
-$asnTotal = $isFiltered ? 27 : 360;
-$asnCpns = $isFiltered ? 13 : 180;
-$asnPns = $isFiltered ? 8 : 108;
-$asnPppkPenuh = $isFiltered ? 3 : 36;
-$asnPppkParuh = $isFiltered ? 3 : 36;
-
-$bludTotal = $isFiltered ? 14 : 180;
-$bludTetap = $isFiltered ? 8 : 108;
-$bludKontrak = $isFiltered ? 6 : 72;
-
-$mitraTotal = $isFiltered ? 4 : 60;
-$mitraPenuh = $isFiltered ? 2 : 36;
-$mitraParuh = $isFiltered ? 2 : 24;
-
-$bangsalLabel = $isFiltered ? $selectedBangsal : 'lingkup instansi';
+$safeJsonFlags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT;
 ?>
-<div class="flex-mobile-stack" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
-    <h1 class="page-title" style="margin: 0;">Dashboard Utama</h1>
-    <form method="GET" style="display: flex; gap: 10px; align-items: center;">
-        <?php if(isset($role)): ?>
-        <input type="hidden" name="role" value="<?= esc($role) ?>">
-        <?php endif; ?>
-        <?php if(!isset($role) || $role !== 'admin'): ?>
-        <select name="filter_bangsal" onchange="this.form.submit()" class="form-select" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-main); font-size: 14px; outline: none; cursor: pointer;">
-            <option value="">Semua Bangsal/Unit</option>
-            <option value="Bangsal Anggrek" <?= ($selectedBangsal === 'Bangsal Anggrek') ? 'selected' : '' ?>>Bangsal Anggrek</option>
-            <option value="IGD" <?= ($selectedBangsal === 'IGD') ? 'selected' : '' ?>>IGD</option>
-            <option value="ICU" <?= ($selectedBangsal === 'ICU') ? 'selected' : '' ?>>ICU</option>
-            <option value="Poli Umum" <?= ($selectedBangsal === 'Poli Umum') ? 'selected' : '' ?>>Poli Umum</option>
-        </select>
-        <?php else: ?>
-        <select class="form-select" disabled style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-main); font-size: 14px; outline: none; cursor: not-allowed; opacity: 0.7;">
-            <option selected>Bangsal Anggrek</option>
-        </select>
-        <?php endif; ?>
-    </form>
+<style>
+    .dashboard-title-row { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; }
+    .dashboard-title-row .page-title { margin:0; }
+    .dashboard-title-row select { min-width:198px; }
+    .dashboard-overview { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; align-items:stretch; margin-bottom:24px; }
+    .dashboard-summary-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:minmax(315px,auto) minmax(254px,auto); gap:24px; }
+    .dashboard-summary-grid .card { height:100%; min-height:254px; }
+    .dashboard-summary-grid .card:nth-child(-n+2) { min-height:315px; }
+    .dashboard-distribution-card { min-height:594px; display:flex; flex-direction:column; }
+    .dashboard-distribution-card .card-heading { flex:0 0 auto; }
+    .dashboard-distribution-chart { height:auto; min-height:0; flex:1; }
+    .job-summary-card { padding:26px 28px; }
+    .job-summary-heading { display:flex; align-items:center; justify-content:space-between; gap:18px; }
+    .job-summary-heading h2 { font-size:18px; margin:0; }
+    .job-search { width:275px; min-height:48px; border:1px solid var(--border); border-radius:10px; display:flex; align-items:center; gap:10px; padding:0 14px; color:var(--text-muted); }
+    .job-search:focus-within { border-color:var(--primary); box-shadow:0 0 0 3px rgba(67,97,238,.1); }
+    .job-search input { width:100%; border:0; outline:0; background:transparent; color:var(--text-main); font:inherit; font-size:14px; }
+    .job-chart-container { position:relative; width:100%; height:340px; margin:22px 0 28px; }
+    .job-card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+    .job-card { min-width:0; min-height:112px; border:1px solid var(--border); border-radius:10px; padding:16px 18px; background:var(--bg-surface); }
+    .job-card[hidden] { display:none; }
+    .job-card h3 { color:var(--primary); font-size:16px; margin:0 0 10px; }
+    .job-card-total { display:flex; align-items:baseline; gap:7px; margin-bottom:8px; }
+    .job-card-total strong { color:var(--text-main); font-size:27px; line-height:1; }
+    .job-card-total span { color:var(--text-muted); font-size:12px; }
+    .job-card-details { display:grid; gap:4px; }
+    .job-card-detail { display:flex; justify-content:space-between; gap:10px; color:var(--text-muted); font-size:12px; }
+    .job-card-detail strong { color:var(--text-main); font-size:12px; }
+    .dashboard-empty { color:var(--text-muted); padding:28px 0; text-align:center; }
+    @media(max-width:1200px) {
+        .dashboard-overview { grid-template-columns:1fr; }
+        .dashboard-summary-grid { grid-template-rows:minmax(280px,auto) minmax(254px,auto); }
+        .dashboard-summary-grid .card:nth-child(-n+2) { min-height:280px; }
+        .dashboard-distribution-card { min-height:500px; }
+        .dashboard-distribution-chart { min-height:400px; }
+    }
+    @media(max-width:700px) {
+        .dashboard-title-row { align-items:stretch; flex-direction:column; }
+        .dashboard-title-row select { width:100%; }
+        .dashboard-summary-grid { grid-template-columns:1fr; grid-template-rows:none; }
+        .dashboard-summary-grid .card,
+        .dashboard-summary-grid .card:nth-child(-n+2) { min-height:220px; }
+        .dashboard-distribution-card { min-height:400px; padding:22px; }
+        .dashboard-distribution-chart { min-height:300px; }
+        .job-summary-card { padding:20px; }
+        .job-summary-heading { align-items:stretch; flex-direction:column; }
+        .job-search { width:100%; }
+        .job-chart-container { height:290px; margin:18px 0 22px; }
+        .job-card-grid { grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); }
+    }
+</style>
+
+<div class="dashboard-title-row">
+    <h1 class="page-title">Dashboard Utama</h1>
+    <?php if (! empty($unitOptions)): ?>
+        <form method="get" action="<?= base_url('/') ?>">
+            <select class="form-control" name="filter_bangsal" onchange="this.form.submit()" aria-label="Filter bangsal atau unit">
+                <option value="">Semua Bangsal/Unit</option>
+                <?php foreach ($unitOptions as $unit): ?>
+                    <option value="<?= esc($unit['name']) ?>" <?= ($selectedUnit ?? '') === $unit['name'] ? 'selected' : '' ?>><?= esc($unit['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </form>
+    <?php endif; ?>
 </div>
 
-<!-- Top Section: Summary & Distribution -->
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; margin-bottom: 24px;">
-    <!-- Left: Summary Cards -->
-    <div class="summary-grid" style="margin-bottom: 0;">
-    <!-- Total Card -->
-    <div class="card">
-        <div class="card-header">
-            <span class="card-title">Total Pegawai</span>
-            <div class="card-icon icon-blue">
-                <i class="fa-solid fa-users-viewfinder"></i>
+<?php if (empty($can_view_employees)): ?>
+    <div class="main-card" style="margin-bottom:24px;color:var(--text-muted);">Akun Anda belum memiliki hak untuk melihat data pegawai pada dashboard.</div>
+<?php endif; ?>
+
+<div class="dashboard-overview">
+    <div class="dashboard-summary-grid">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Total Pegawai</span>
+                <div class="card-icon icon-blue"><i class="fa-solid fa-users-viewfinder"></i></div>
+            </div>
+            <div class="card-value">
+                <?= number_format($total) ?>
+                <span class="card-percentage perc-blue"><?= $total > 0 ? '100%' : '0%' ?></span>
+            </div>
+            <div class="card-details" style="border:none;">
+                <div class="detail-row" style="color:var(--text-muted);justify-content:center;text-align:center;">
+                    Total keseluruhan pegawai <br> di lingkup instansi
+                </div>
+                <?php if ($otherCount > 0): ?>
+                    <div class="detail-row" style="color:var(--text-muted);">
+                        <span>Belum dikelompokkan</span>
+                        <span><?= number_format($otherCount) ?> <small>(<?= $percent($otherCount, $total) ?>%)</small></span>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
-        <div class="card-value">
-            <?= $total ?>
-            <span class="card-percentage perc-blue">100%</span>
-        </div>
-        <div class="card-details" style="border:none;">
-            <div class="detail-row" style="color:var(--text-muted); justify-content:center; text-align:center;">
-                Total keseluruhan pegawai <br> di <?= $bangsalLabel ?>
+
+        <?php foreach ($summaryGroups as $group): ?>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><?= esc($group['title']) ?></span>
+                    <div class="card-icon <?= esc($group['icon_color']) ?>"><i class="fa-solid <?= esc($group['icon']) ?>"></i></div>
+                </div>
+                <div class="card-value">
+                    <?= number_format($group['total']) ?>
+                    <span class="card-percentage <?= esc($group['badge_color']) ?>"><?= $group['share'] ?>%</span>
+                </div>
+                <div class="card-details">
+                    <?php foreach ($group['rows'] as $row): ?>
+                        <div class="detail-row">
+                            <span><i class="fa-solid fa-circle" style="font-size:8px;color:<?= esc($group['dot_color']) ?>;margin-right:6px;"></i><?= esc($row['label']) ?></span>
+                            <span><?= number_format($row['count']) ?> <small>(<?= $percent($row['count'], $group['total']) ?>%)</small></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             </div>
-        </div>
+        <?php endforeach; ?>
     </div>
 
-    <!-- ASN Card -->
-    <div class="card">
-        <div class="card-header">
-            <span class="card-title">Total ASN</span>
-            <div class="card-icon icon-green">
-                <i class="fa-solid fa-user-tie"></i>
-            </div>
-        </div>
-        <div class="card-value">
-            <?= $asnTotal ?>
-            <span class="card-percentage perc-green">60%</span>
-        </div>
-        <!-- Detailed Breakdown Inside -->
-        <div class="card-details">
-            <div class="detail-row">
-                <span><i class="fa-solid fa-circle" style="font-size:8px;color:#10b981;margin-right:6px;"></i> CPNS</span>
-                <span><?= $asnCpns ?> <small>(50%)</small></span>
-            </div>
-            <div class="detail-row">
-                <span><i class="fa-solid fa-circle" style="font-size:8px;color:#10b981;margin-right:6px;"></i> PNS</span>
-                <span><?= $asnPns ?> <small>(30%)</small></span>
-            </div>
-            <div class="detail-row">
-                <span><i class="fa-solid fa-circle" style="font-size:8px;color:#10b981;margin-right:6px;"></i> PPPK (Penuh)</span>
-                <span><?= $asnPppkPenuh ?> <small>(10%)</small></span>
-            </div>
-            <div class="detail-row">
-                <span><i class="fa-solid fa-circle" style="font-size:8px;color:#10b981;margin-right:6px;"></i> PPPK (Paruh)</span>
-                <span><?= $asnPppkParuh ?> <small>(10%)</small></span>
-            </div>
-        </div>
-    </div>
-
-    <!-- BLUD Card -->
-    <div class="card">
-        <div class="card-header">
-            <span class="card-title">Total BLUD</span>
-            <div class="card-icon icon-purple">
-                <i class="fa-solid fa-user-doctor"></i>
-            </div>
-        </div>
-        <div class="card-value">
-            <?= $bludTotal ?>
-            <span class="card-percentage perc-purple">30%</span>
-        </div>
-        <!-- Detailed Breakdown Inside -->
-        <div class="card-details">
-            <div class="detail-row">
-                <span><i class="fa-solid fa-circle" style="font-size:8px;color:#8b5cf6;margin-right:6px;"></i> Tetap</span>
-                <span><?= $bludTetap ?> <small>(60%)</small></span>
-            </div>
-            <div class="detail-row">
-                <span><i class="fa-solid fa-circle" style="font-size:8px;color:#8b5cf6;margin-right:6px;"></i> Kontrak</span>
-                <span><?= $bludKontrak ?> <small>(40%)</small></span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Mitra Card -->
-    <div class="card">
-        <div class="card-header">
-            <span class="card-title">Total Mitra</span>
-            <div class="card-icon icon-orange">
-                <i class="fa-solid fa-handshake"></i>
-            </div>
-        </div>
-        <div class="card-value">
-            <?= $mitraTotal ?>
-            <span class="card-percentage perc-orange">10%</span>
-        </div>
-        <!-- Detailed Breakdown Inside -->
-        <div class="card-details">
-            <div class="detail-row">
-                <span><i class="fa-solid fa-circle" style="font-size:8px;color:#f59e0b;margin-right:6px;"></i> Penuh Waktu</span>
-                <span><?= $mitraPenuh ?> <small>(60%)</small></span>
-            </div>
-            <div class="detail-row">
-                <span><i class="fa-solid fa-circle" style="font-size:8px;color:#f59e0b;margin-right:6px;"></i> Paruh Waktu</span>
-                <span><?= $mitraParuh ?> <small>(40%)</small></span>
-            </div>
-        </div>
-        </div>
-    </div>
-    
-    <!-- Right: Distribusi Pegawai Kerja Chart -->
-    <div class="card" style="height: 100%; min-height: 400px;">
-        <h2 style="font-size: 16px; margin-top: 0; margin-bottom: 20px; color: var(--text-main);">Distribusi Pegawai Kerja</h2>
-        <div class="chart-container" style="flex: 1; position: relative;">
-            <canvas id="distributionChart"></canvas>
-        </div>
-    </div>
+    <section class="main-card dashboard-distribution-card">
+        <div class="card-heading">Distribusi Pegawai Kerja</div>
+        <div class="chart-container dashboard-distribution-chart"><canvas id="employeeChart"></canvas></div>
+    </section>
 </div>
 
-<div class="card" style="margin-bottom: 24px; height: auto;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
-        <h2 style="font-size: 16px; margin-top: 0; margin-bottom: 0; color: var(--text-main);">Rincian Pegawai Berdasarkan Jabatan & Jenjang</h2>
-        <div style="position: relative;">
-            <i class="fa-solid fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 14px;"></i>
-            <input type="text" id="searchJabatan" placeholder="Cari nama jabatan..." class="form-control" style="padding-left: 36px; width: 250px; font-size: 14px;">
-        </div>
-    </div>
-    
-    <div class="chart-container" style="margin-bottom: 24px; height: 300px;">
-        <canvas id="jabatanChart"></canvas>
+<section class="main-card job-summary-card">
+    <div class="job-summary-heading">
+        <h2>Rincian Pegawai Berdasarkan Jabatan &amp; Jenjang</h2>
+        <label class="job-search" for="jobSearch">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input id="jobSearch" type="search" placeholder="Cari nama jabatan..." autocomplete="off">
+        </label>
     </div>
 
-    <div id="jabatanGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; align-items: start;">
-        <!-- Dokter -->
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="font-weight: 600; margin-bottom: 8px; color: var(--primary);">Dokter</div>
-            <div style="font-size: 24px; font-weight: 700; margin-bottom: 12px;"><?= $isAdmin ? 4 : 45 ?> <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">Orang</span></div>
-            <div style="font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between;">
-                <span>Dokter Umum</span>
-                <span style="font-weight: 500; color: var(--text-main);"><?= $isAdmin ? 2 : 25 ?></span>
-            </div>
-            <div style="font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between; margin-top: 4px;">
-                <span>Dokter Spesialis</span>
-                <span style="font-weight: 500; color: var(--text-main);"><?= $isAdmin ? 2 : 20 ?></span>
-            </div>
+    <?php if ($jobBreakdown === []): ?>
+        <p class="dashboard-empty">Belum ada data jabatan yang dapat ditampilkan.</p>
+    <?php else: ?>
+        <div class="job-chart-container"><canvas id="jobBreakdownChart"></canvas></div>
+        <div class="job-card-grid" id="jobBreakdownCards">
+            <?php foreach ($jobBreakdown as $job): ?>
+                <article class="job-card" data-job-name="<?= esc(mb_strtolower($job['name'])) ?>">
+                    <h3><?= esc($job['name']) ?></h3>
+                    <div class="job-card-total"><strong><?= number_format($job['total']) ?></strong><span>Orang</span></div>
+                    <?php if ($job['details'] !== []): ?>
+                        <div class="job-card-details">
+                            <?php foreach ($job['details'] as $detail): ?>
+                                <div class="job-card-detail"><span><?= esc($detail['label']) ?></span><strong><?= number_format($detail['count']) ?></strong></div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </article>
+            <?php endforeach; ?>
         </div>
+    <?php endif; ?>
+</section>
 
-        <!-- Perawat -->
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="font-weight: 600; margin-bottom: 8px; color: var(--primary);">Perawat</div>
-            <div style="font-size: 24px; font-weight: 700; margin-bottom: 12px;"><?= $isAdmin ? 20 : 250 ?> <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">Orang</span></div>
-            <div style="font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between;">
-                <span>Kategori Terampil (Vokasi)</span>
-                <span style="font-weight: 500; color: var(--text-main);"><?= $isAdmin ? 12 : 150 ?></span>
-            </div>
-            <div style="font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between; margin-top: 4px;">
-                <span>Kategori Ahli (Profesi)</span>
-                <span style="font-weight: 500; color: var(--text-main);"><?= $isAdmin ? 8 : 100 ?></span>
-            </div>
-        </div>
-
-        <!-- Bidan -->
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="font-weight: 600; margin-bottom: 8px; color: var(--primary);">Bidan</div>
-            <div style="font-size: 24px; font-weight: 700; margin-bottom: 12px;"><?= $isAdmin ? 8 : 120 ?> <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">Orang</span></div>
-            <div style="font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between;">
-                <span>Kategori Terampil</span>
-                <span style="font-weight: 500; color: var(--text-main);"><?= $isAdmin ? 5 : 80 ?></span>
-            </div>
-            <div style="font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between; margin-top: 4px;">
-                <span>Kategori Ahli</span>
-                <span style="font-weight: 500; color: var(--text-main);"><?= $isAdmin ? 3 : 40 ?></span>
-            </div>
-        </div>
-
-        <!-- Apoteker -->
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="font-weight: 600; margin-bottom: 8px; color: var(--primary);">Apoteker</div>
-            <div style="font-size: 24px; font-weight: 700; margin-bottom: 12px;"><?= $isAdmin ? 1 : 15 ?> <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">Orang</span></div>
-        </div>
-
-        <!-- Asisten Apoteker -->
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="font-weight: 600; margin-bottom: 8px; color: var(--primary);">Asisten Apoteker</div>
-            <div style="font-size: 24px; font-weight: 700; margin-bottom: 12px;"><?= $isAdmin ? 2 : 30 ?> <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">Orang</span></div>
-        </div>
-        
-        <!-- Analis SDM Aparatur -->
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="font-weight: 600; margin-bottom: 8px; color: var(--primary);">Analis SDM Aparatur</div>
-            <div style="font-size: 24px; font-weight: 700; margin-bottom: 12px;"><?= $isAdmin ? 2 : 15 ?> <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">Orang</span></div>
-        </div>
-
-        <!-- Pranata Komputer -->
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="font-weight: 600; margin-bottom: 8px; color: var(--primary);">Pranata Komputer</div>
-            <div style="font-size: 24px; font-weight: 700; margin-bottom: 12px;"><?= $isAdmin ? 2 : 12 ?> <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">Orang</span></div>
-        </div>
-
-        <!-- Pengelola Keuangan -->
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="font-weight: 600; margin-bottom: 8px; color: var(--primary);">Pengelola Keuangan</div>
-            <div style="font-size: 24px; font-weight: 700; margin-bottom: 12px;"><?= $isAdmin ? 2 : 18 ?> <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">Orang</span></div>
-        </div>
-
-        <!-- Petugas Kebersihan -->
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
-            <div style="font-weight: 600; margin-bottom: 8px; color: var(--primary);">Petugas Kebersihan</div>
-            <div style="font-size: 24px; font-weight: 700; margin-bottom: 12px;"><?= $isAdmin ? 6 : 40 ?> <span style="font-size: 12px; font-weight: 400; color: var(--text-muted);">Orang</span></div>
-        </div>
-    </div>
-</div>
-
-<!-- Removed Distribution Chart from here -->
-<?= $this->endSection() ?>
-
-<?= $this->section('scripts') ?>
 <script>
-    const ctxDist = document.getElementById('distributionChart').getContext('2d');
-    new Chart(ctxDist, {
-        type: 'bar',
-        data: {
-            labels: ['CPNS', 'PNS', 'PPPK (Penuh)', 'PPPK (Paruh)', 'BLUD Tetap', 'BLUD Kontrak', 'Mitra (Penuh)', 'Mitra (Paruh)'],
-            datasets: [{
-                label: 'Jumlah Pegawai',
-                data: [
-                    <?= $asnCpns ?>, <?= $asnPns ?>, <?= $asnPppkPenuh ?>, <?= $asnPppkParuh ?>,
-                    <?= $bludTetap ?>, <?= $bludKontrak ?>,
-                    <?= $mitraPenuh ?>, <?= $mitraParuh ?>
-                ],
-                backgroundColor: [
-                    '#10b981', '#10b981', '#10b981', '#10b981',
-                    '#8b5cf6', '#8b5cf6',
-                    '#f59e0b', '#f59e0b'
-                ],
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
+document.addEventListener('DOMContentLoaded', function () {
+    const employeeCanvas = document.getElementById('employeeChart');
+    if (employeeCanvas && typeof Chart !== 'undefined') {
+        new Chart(employeeCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($chartLabels, $safeJsonFlags) ?>,
+                datasets: [{
+                    label: 'Jumlah Pegawai',
+                    data: <?= json_encode($chartValues, $safeJsonFlags) ?>,
+                    backgroundColor: <?= json_encode($chartColors, $safeJsonFlags) ?>,
+                    borderRadius: 7,
+                    borderSkipped: false
+                }]
             },
-            scales: {
-                y: { beginAtZero: true }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        padding: 12,
+                        callbacks: { label: context => ` ${context.raw} Pegawai` }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#e2e8f0', drawBorder: false }, ticks: { precision: 0, color: '#64748b' } },
+                    x: { grid: { display: false, drawBorder: false }, ticks: { color: '#64748b', maxRotation: 16, minRotation: 0 } }
+                }
             }
-        }
-    });
-    // Data dari UI mockup untuk Jabatan Chart
-    const ctxJabatan = document.getElementById('jabatanChart').getContext('2d');
-    const jabatanChart = new Chart(ctxJabatan, {
+        });
+    }
+
+    const jobCanvas = document.getElementById('jobBreakdownChart');
+    const search = document.getElementById('jobSearch');
+    if (!jobCanvas || typeof Chart === 'undefined') return;
+
+    const jobs = <?= json_encode($jobBreakdown, $safeJsonFlags) ?>;
+    const jobChart = new Chart(jobCanvas.getContext('2d'), {
         type: 'bar',
         data: {
-            labels: [
-                'Dokter', 'Perawat', 'Bidan', 'Apoteker', 'Asisten Apoteker', 
-                'Analis SDM', 'Pranata Komputer', 'Pengelola Keuangan', 'Petugas Kebersihan'
-            ],
+            labels: jobs.map(job => job.name),
             datasets: [
-                {
-                    label: 'Ahli / Spesialis',
-                    data: [
-                        <?= $isAdmin ? 2 : 20 ?>, // Dokter Spesialis
-                        <?= $isAdmin ? 8 : 100 ?>, // Perawat Ahli
-                        <?= $isAdmin ? 3 : 40 ?>, // Bidan Ahli
-                        0, 0, 0, 0, 0, 0
-                    ],
-                    backgroundColor: '#8b5cf6' // Purple
-                },
-                {
-                    label: 'Terampil / Umum',
-                    data: [
-                        <?= $isAdmin ? 2 : 25 ?>, // Dokter Umum
-                        <?= $isAdmin ? 12 : 150 ?>, // Perawat Terampil
-                        <?= $isAdmin ? 5 : 80 ?>, // Bidan Terampil
-                        0, 0, 0, 0, 0, 0
-                    ],
-                    backgroundColor: '#10b981' // Green
-                },
-                {
-                    label: 'Tanpa Jenjang Spesifik',
-                    data: [
-                        0, 0, 0,
-                        <?= $isAdmin ? 1 : 15 ?>, // Apoteker
-                        <?= $isAdmin ? 2 : 30 ?>, // Asisten Apoteker
-                        <?= $isAdmin ? 2 : 15 ?>, // Analis SDM
-                        <?= $isAdmin ? 2 : 12 ?>, // Pranata Komputer
-                        <?= $isAdmin ? 2 : 18 ?>, // Keuangan
-                        <?= $isAdmin ? 6 : 40 ?>  // Kebersihan
-                    ],
-                    backgroundColor: '#3b82f6' // Blue
-                }
+                { label: 'Ahli / Spesialis', data: jobs.map(job => job.expert), backgroundColor: '#8b5cf6', borderRadius: 0, borderSkipped: false },
+                { label: 'Terampil / Umum', data: jobs.map(job => job.skilled), backgroundColor: '#10b981', borderRadius: 0, borderSkipped: false },
+                { label: 'Tanpa Jenjang Spesifik', data: jobs.map(job => job.specific), backgroundColor: '#3b82f6', borderRadius: 0, borderSkipped: false }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom' }
+                legend: { position: 'bottom', labels: { usePointStyle: false, boxWidth: 28, padding: 18 } },
+                tooltip: { callbacks: { label: context => ` ${context.dataset.label}: ${context.raw} orang` } }
             },
             scales: {
-                x: { stacked: true },
-                y: { stacked: true, beginAtZero: true }
+                x: { stacked: true, grid: { color: '#e2e8f0' }, ticks: { maxRotation: 0, minRotation: 0 } },
+                y: { stacked: true, beginAtZero: true, grid: { color: '#e2e8f0' }, ticks: { precision: 0 } }
             }
         }
     });
 
-    // Fitur pencarian jabatan (dengan pembaruan chart)
-    const searchInput = document.getElementById('searchJabatan');
-    const jabatanGrid = document.getElementById('jabatanGrid');
-    
-    if (searchInput && jabatanGrid) {
-        searchInput.addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const cards = jabatanGrid.children;
-            
-            for (let i = 0; i < cards.length; i++) {
-                const card = cards[i];
-                // Mengambil judul jabatan dari elemen pertama di dalam card
-                const titleElement = card.querySelector('div:first-child');
-                
-                if (titleElement) {
-                    const title = titleElement.textContent.toLowerCase();
-                    if (title.includes(searchTerm)) {
-                        card.style.display = '';
-                    } else {
-                        card.style.display = 'none';
-                    }
-                }
-            }
+    if (search) {
+        search.addEventListener('input', function () {
+            const query = search.value.trim().toLocaleLowerCase('id');
+            const filteredJobs = jobs.filter(job => job.name.toLocaleLowerCase('id').includes(query));
+            document.querySelectorAll('#jobBreakdownCards .job-card').forEach(function (card) {
+                card.hidden = !card.dataset.jobName.includes(query);
+            });
+            jobChart.data.labels = filteredJobs.map(job => job.name);
+            jobChart.data.datasets[0].data = filteredJobs.map(job => job.expert);
+            jobChart.data.datasets[1].data = filteredJobs.map(job => job.skilled);
+            jobChart.data.datasets[2].data = filteredJobs.map(job => job.specific);
+            jobChart.update();
         });
     }
+});
 </script>
 <?= $this->endSection() ?>

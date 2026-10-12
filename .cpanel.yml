@@ -1,0 +1,13 @@
+---
+# Git Deploy di cPanel (Git Version Control -> Deploy HEAD Commit).
+# Menyalin kode dari repositori ke folder aplikasi di hosting.
+# Tidak pernah menyentuh: .env, writable/ (dokumen pegawai, sesi, log), vendor/.
+deployment:
+  tasks:
+    - export APPDIR=/home/kepegrsu/simkepeg2
+    - /bin/mkdir -p $APPDIR
+    - /usr/bin/rsync -a --delete app/ $APPDIR/app/
+    - /usr/bin/rsync -a public/ $APPDIR/public/
+    - /bin/cp composer.json composer.lock spark preload.php env.production.example $APPDIR/
+    # Jika situs memakai salinan public/ di public_html (Cara B), perbarui juga salinan itu.
+    - if [ -f $HOME/public_html/index.php ] && [ -f $HOME/public_html/favicon-rsud.png ]; then /usr/bin/rsync -a public/ $HOME/public_html/; fi

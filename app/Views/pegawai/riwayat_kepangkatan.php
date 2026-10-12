@@ -1,6 +1,11 @@
 <?= $this->extend('layout/main') ?>
 
 <?= $this->section('content') ?>
+<?php
+$employeeProfile = $employee_profile ?? \App\Libraries\EmployeeProfileData::get();
+$employee = $employeeProfile['pegawai'];
+$career = $employeeProfile['karir'];
+?>
 <!-- SweetAlert2 -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -251,11 +256,11 @@
         <div class="rank-pill" style="margin-bottom: 12px;">
             <i class="fa-solid fa-medal"></i> Pangkat & Golongan Saat Ini
         </div>
-        <h2 id="currentRankTitle" style="margin: 0 0 6px 0; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">Penata Muda (III/a)</h2>
+        <h2 id="currentRankTitle" style="margin: 0 0 6px 0; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;"><?= esc($career['pangkat_nama']) ?></h2>
         <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; opacity: 0.95; margin-top: 10px;">
-            <div><i class="fa-regular fa-calendar-check"></i> <strong>TMT:</strong> 01 Desember 2020</div>
-            <div><i class="fa-solid fa-clock-rotate-left"></i> <strong>Masa Kerja:</strong> 3 Tahun 9 Bulan</div>
-            <div><i class="fa-solid fa-hashtag"></i> <strong>No. SK Terakhir:</strong> 550/Pem.D/BP/D.2</div>
+            <div><i class="fa-regular fa-calendar-check"></i> <strong>TMT:</strong> <?= date('d-m-Y', strtotime($career['pangkat_tmt'])) ?></div>
+            <div><i class="fa-solid fa-clock-rotate-left"></i> <strong>Masa Kerja:</strong> <?= esc($career['masa_kerja']) ?></div>
+            <div><i class="fa-solid fa-hashtag"></i> <strong>No. SK Terakhir:</strong> <?= esc($career['pangkat_nomor']) ?></div>
         </div>
     </div>
     <div style="z-index: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;" class="flex-mobile-stack">
@@ -288,7 +293,7 @@
             <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">(Data Terkini)</span>
         </div>
         <div style="font-size: 13px; color: var(--text-muted);">
-            Pegawai: <strong>Ahmad Hidayat, S.Kep., Ns.</strong> (NIP: 198501012010011001)
+            Pegawai: <strong><?= esc(trim($employee['nama'] . ', ' . $employee['gelar_belakang'], ', ')) ?></strong> (NIP: <?= esc($employee['nip']) ?>)
         </div>
     </div>
 
@@ -402,17 +407,17 @@
                 <tr id="sah-row-1">
                     <td>1</td>
                     <td>
-                        <div style="font-weight: 600; color: var(--text-main);">Penata Muda, III/a</div>
+                        <div style="font-weight: 600; color: var(--text-main);"><?= esc($career['pangkat_nama']) ?></div>
                         <span class="status-badge badge-approved" style="font-size: 10px; padding: 2px 6px;">Pangkat Aktif</span>
                     </td>
                     <td>Gol. dari Pengadaan CPNS/PNS</td>
-                    <td>01-12-2020</td>
-                    <td>28-12-2020</td>
-                    <td><span style="font-family: monospace;">550/Pem.D/BP/D.2</span></td>
-                    <td>0 thn 0 bln</td>
+                    <td><?= date('d-m-Y', strtotime($career['pangkat_tmt'])) ?></td>
+                    <td><?= date('d-m-Y', strtotime($career['pangkat_tanggal'])) ?></td>
+                    <td><span style="font-family: monospace;"><?= esc($career['pangkat_nomor']) ?></span></td>
+                    <td><?= esc($career['masa_kerja']) ?></td>
                     <td>0</td>
                     <td>
-                        <button class="btn btn-outline" onclick="previewDokumenSK('SK_Pengangkatan_PNS_IIIa.pdf', 'Penata Muda, III/a', '550/Pem.D/BP/D.2', '01-12-2020')" style="padding: 4px 8px; font-size: 11px; color: var(--primary);">
+                        <button class="btn btn-outline" onclick="previewDokumenSK('SK_Pengangkatan_PNS_IIIa.pdf', '<?= esc($career['pangkat_nama']) ?>', '<?= esc($career['pangkat_nomor']) ?>', '<?= date('d-m-Y', strtotime($career['pangkat_tmt'])) ?>')" style="padding: 4px 8px; font-size: 11px; color: var(--primary);">
                             <i class="fa-solid fa-file-pdf"></i> Unduh SK
                         </button>
                     </td>
@@ -420,6 +425,7 @@
             </tbody>
         </table>
     </div>
+    <?= view('employee_attachment_group', ['employee_profile' => $employeeProfile, 'document_group' => 'kepangkatan', 'document_mode' => 'edit']) ?>
 </div>
 
 <!-- ========================================== -->
@@ -445,13 +451,13 @@
             <div style="background: var(--bg-body); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
                 <div>
                     <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Nama Pegawai</span>
-                    <strong style="color: var(--text-main);">Ahmad Hidayat, S.Kep., Ns.</strong>
-                    <div style="font-size: 12px; color: var(--text-muted);">NIP: 198501012010011001</div>
+                    <strong style="color: var(--text-main);"><?= esc(trim($employee['nama'] . ', ' . $employee['gelar_belakang'], ', ')) ?></strong>
+                    <div style="font-size: 12px; color: var(--text-muted);">NIP: <?= esc($employee['nip']) ?></div>
                 </div>
                 <div>
                     <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase;">Pangkat Saat Ini (Terkunci)</span>
                     <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
-                        <span class="status-badge" style="background: #e0e7ff; color: #3730a3; font-weight: 700;">Penata Muda / IIIa</span>
+                        <span class="status-badge" style="background: #e0e7ff; color: #3730a3; font-weight: 700;"><?= esc($career['pangkat_nama']) ?></span>
                         <i class="fa-solid fa-lock" style="font-size: 11px; color: var(--text-muted);"></i>
                     </div>
                 </div>
@@ -610,12 +616,12 @@
                     <tr>
                         <td style="width: 140px; padding: 4px 0;">Nama Pegawai</td>
                         <td style="width: 15px;">:</td>
-                        <td><strong>Ahmad Hidayat, S.Kep., Ns.</strong></td>
+                        <td><strong><?= esc(trim($employee['nama'] . ', ' . $employee['gelar_belakang'], ', ')) ?></strong></td>
                     </tr>
                     <tr>
                         <td style="padding: 4px 0;">NIP</td>
                         <td>:</td>
-                        <td>198501012010011001</td>
+                        <td><?= esc($employee['nip']) ?></td>
                     </tr>
                     <tr>
                         <td style="padding: 4px 0;">Pangkat / Golongan Baru</td>

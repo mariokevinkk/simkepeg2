@@ -21,7 +21,9 @@ class App extends BaseConfig
     public function __construct()
     {
         parent::__construct();
-        if (isset($_SERVER['HTTP_HOST'])) {
+        // Online the address comes from app.baseURL in .env; detecting it from the Host header
+        // is only a convenience for local development, because that header can be forged.
+        if (env('app.baseURL') === null && isset($_SERVER['HTTP_HOST'])) {
             $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https://' : 'http://';
             $this->baseURL = $protocol . $_SERVER['HTTP_HOST'] . '/';
         }

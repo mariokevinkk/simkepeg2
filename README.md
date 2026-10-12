@@ -28,6 +28,52 @@ to your `app` folder. The affected files can be copied or merged from
 Copy `env` to `.env` and tailor for your app, specifically the baseURL
 and any database settings.
 
+### Menyiapkan SIM Kepegawaian
+
+Untuk MySQL Laragon dengan konfigurasi bawaan, buat database `simkepeg2` melalui
+phpMyAdmin atau HeidiSQL, lalu gunakan pengaturan `.env` berikut. Jika nama
+database atau kredensial MySQL berbeda, sesuaikan nilainya:
+
+```ini
+database.default.hostname = 127.0.0.1
+database.default.database = simkepeg2
+database.default.username = root
+database.default.password =
+database.default.port = 3306
+```
+
+Lalu buat tabel dan akun awal:
+
+```bash
+php spark migrate
+php spark db:seed DatabaseSeeder
+```
+
+Seeder membuat daftar unit awal, satu akun Super Admin, dan lima pegawai dummy
+di setiap unit aktif. Jika hanya ingin menambah pegawai contoh setelah setup awal,
+jalankan `php spark db:seed EmployeeDummySeeder`. Seeder pegawai aman dijalankan
+ulang, memakai NIP berawalan `DUMMY`, dan menautkan setiap pegawai dummy ke akun
+login. Username pegawai dummy adalah NIP, sedangkan password awal memakai tanggal
+lahir berformat `ddmmyyyy`.
+Password awal Super Admin acak
+ditampilkan satu kali di terminal saat seeder berjalan; simpan password tersebut.
+Pegawai asli dapat mendaftar melalui `/register`
+dan menunggu persetujuan Super Admin, atau dibuat dari menu Data Pegawai.
+Pegawai yang dibuat lewat menu Data Pegawai langsung mendapat akun login aktif;
+Super Admin mengisi username dan tanggal lahir, lalu password awalnya adalah
+tanggal lahir berformat `ddmmyyyy`. Jika email kosong, pegawai login memakai
+username atau NIP. Password dapat diganti melalui menu **Ubah Password**.
+Untuk data lama tanpa akun login, buka **Edit Data Pegawai**, isi username dan
+tanggal lahir, lalu simpan untuk membuat serta menautkan akun.
+
+Super Admin membuat admin unit dari menu **Manajemen Admin**, memilih satu atau
+lebih unit, lalu memberi hak seperti melihat, membuat, atau mengubah data pegawai,
+mengelola dokumen, dan melihat laporan. Cakupan unit diterapkan saat daftar dan
+detail pegawai dimuat.
+
+File lampiran disimpan di `writable/uploads/employee-documents`; folder ini ikut
+perlu dicadangkan bersama database.
+
 ## Important Change with index.php
 
 `index.php` is no longer in the root of the project! It has been moved inside the *public* folder,

@@ -1,9 +1,23 @@
+<?php
+helper('security');
+$authUser = session()->get('auth_user') ?? [];
+$authDisplayName = $authUser['name'] ?? 'Pengguna';
+$authRoleLabel = match ($authUser['role'] ?? '') {
+    'pegawai' => 'Pegawai',
+    'admin_unit' => 'Admin Unit',
+    default => 'Super Admin',
+};
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= csrf_token() ?>" data-hash="<?= csrf_hash() ?>">
     <title>SIM Kepegawaian</title>
+    <link rel="icon" type="image/png" href="<?= base_url('favicon-rsud.png') ?>">
+    <link rel="icon" href="<?= base_url('favicon.ico') ?>" sizes="any">
+    <link rel="apple-touch-icon" href="<?= base_url('apple-touch-icon.png') ?>">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -673,36 +687,22 @@
             <div class="nav-label">Main Menu</div>
             
             <?php if(isset($role) && $role === 'pegawai'): ?>
-            <a href="<?= base_url('/profil-pegawai?role=pegawai') ?>" class="nav-item <?= ($active_menu == 'profil-pegawai') ? 'active' : '' ?>">
-                <i class="fa-solid fa-user"></i> Data Utama
+            <?php foreach (\App\Libraries\EmployeeProfileData::profilePages() as $pageKey => $pageInfo): ?>
+            <a href="<?= base_url('/' . $pageKey) ?>" class="nav-item <?= ($active_menu == $pageKey) ? 'active' : '' ?>">
+                <i class="fa-solid <?= esc($pageInfo['icon']) ?>"></i> <?= esc($pageInfo['title']) ?>
             </a>
-            <a href="<?= base_url('/riwayat-kepangkatan?role=pegawai') ?>" class="nav-item <?= ($active_menu == 'riwayat-kepangkatan') ? 'active' : '' ?>">
-                <i class="fa-solid fa-chart-line"></i> Riwayat Kepangkatan
-            </a>
-            <a href="<?= base_url('/riwayat-jabatan?role=pegawai') ?>" class="nav-item <?= ($active_menu == 'riwayat-jabatan') ? 'active' : '' ?>">
-                <i class="fa-solid fa-briefcase"></i> Riwayat Jabatan
-            </a>
-            <a href="<?= base_url('/riwayat-pendidikan?role=pegawai') ?>" class="nav-item <?= ($active_menu == 'riwayat-pendidikan') ? 'active' : '' ?>">
-                <i class="fa-solid fa-graduation-cap"></i> Pendidikan & Pelatihan
-            </a>
-            <a href="<?= base_url('/data-keluarga?role=pegawai') ?>" class="nav-item <?= ($active_menu == 'data-keluarga') ? 'active' : '' ?>">
-                <i class="fa-solid fa-users"></i> Data Keluarga
-            </a>
-            <a href="<?= base_url('/data-lainnya?role=pegawai') ?>" class="nav-item <?= ($active_menu == 'data-lainnya') ? 'active' : '' ?>">
-                <i class="fa-solid fa-ellipsis"></i> Lainnya
-            </a>
+            <?php endforeach; ?>
             <?php else: ?>
             <a href="<?= base_url('/?role=' . (isset($role) ? $role : 'superadmin')) ?>" class="nav-item <?= ($active_menu == 'dashboard') ? 'active' : '' ?>">
                 <i class="fa-solid fa-chart-pie"></i> Dashboard
             </a>
             
-            <?php if(!isset($role) || $role === 'superadmin'): ?>
+            <?php if((!isset($role) || $role === 'superadmin') || !empty($authUser['permissions']['documents.manage'])): ?>
             <a href="<?= base_url('/aktivitas?role=superadmin') ?>" class="nav-item <?= ($active_menu == 'aktivitas') ? 'active' : '' ?>" style="display: flex; justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 16px;">
                     <i class="fa-solid fa-clipboard-check" style="font-size: 18px; width: 24px; text-align: center;"></i> 
                     <span>Aktivitas</span>
                 </div>
-                <span style="background: var(--danger); color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: bold;">3 Baru</span>
             </a>
             <?php endif; ?>
 
@@ -748,43 +748,10 @@
                     <i class="fa-solid fa-bars"></i>
                 </button>
                 <div class="welcome-text" style="font-size: 15px; font-weight: 500; color: var(--text-main);">
-                    Halo, Selamat Datang <strong>Mario</strong> 
-                    <span style="color: var(--text-muted); font-size: 13px;">
-                        (<?php 
-                            if(isset($role) && $role === 'pegawai') echo 'Pegawai';
-                            elseif(isset($role) && $role === 'admin') echo 'Admin Bangsal';
-                            elseif(isset($role) && $role === 'direktur') echo 'Direktur';
-                            else echo 'Super Admin';
-                        ?>)
-                    </span>
+                    Halo, Selamat Datang <strong><?= esc($authDisplayName) ?></strong>
+                    <span style="color: var(--text-muted); font-size: 13px;">(<?= esc($authRoleLabel) ?>)</span>
                 </div>
                 
-                <?php
-                date_default_timezone_set('Asia/Jakarta');
-                $changelog = [
-                    ['date' => '2026-08-06 16:10', 'msg' => 'Penambahan fitur SIP, aktivitas, perbaikan tampilan pensiun, dan penyesuaian filter status kepegawaian'],
-                    ['date' => '2026-07-01 14:11', 'msg' => 'Fitur edit dan view di data pegawai bisa di buka'],
-                    ['date' => '2026-07-01 13:57', 'msg' => 'Menambahkan filter di bagian data pegawai'],
-                    ['date' => '2026-06-30 10:00', 'msg' => 'Initial deployment SIM Kepegawaian'],
-                ];
-                $last_update = $changelog[0]['date'];
-                ?>
-                <div class="update-info profile-dropdown-container" style="margin-left: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px;">
-                    <span style="color: var(--text-muted);">Last Update: <strong><?= $last_update ?></strong></span>
-                    <i class="fa-solid fa-circle-info" id="updateInfoBtn" style="color: var(--primary); cursor: pointer; font-size: 14px;" title="Lihat History Update"></i>
-                    
-                    <div class="profile-dropdown-menu" id="updateInfoMenu" style="width: 300px; padding: 16px; left: 0; right: auto;">
-                        <div style="font-weight: 600; margin-bottom: 12px; color: var(--text-main); font-size: 14px;">Update History</div>
-                        <div style="display: flex; flex-direction: column; gap: 12px; max-height: 250px; overflow-y: auto;">
-                            <?php foreach($changelog as $log): ?>
-                            <div style="border-left: 2px solid var(--primary); padding-left: 12px;">
-                                <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px;"><?= $log['date'] ?></div>
-                                <div style="font-size: 13px; color: var(--text-main);"><?= $log['msg'] ?></div>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
             </div>
             
             <div class="user-profile">
@@ -794,44 +761,25 @@
                 </button>
                 <div class="profile-dropdown-container">
                     <div class="profile-btn" id="profileDropdownBtn" style="cursor: pointer;">
-                        <img src="https://ui-avatars.com/api/?name=Mario&background=4361ee&color=fff" alt="User">
+                        <img src="https://ui-avatars.com/api/?name=<?= rawurlencode($authDisplayName) ?>&background=4361ee&color=fff" alt="User">
                         <div class="profile-info">
-                            <span class="profile-name">Mario</span>
-                            <span class="profile-role">
-                                <?php 
-                                    if(isset($role) && $role === 'pegawai') echo 'Pegawai';
-                                    elseif(isset($role) && $role === 'admin') echo 'Admin Bangsal';
-                                    elseif(isset($role) && $role === 'direktur') echo 'Direktur';
-                                    else echo 'Super Admin';
-                                ?>
-                            </span>
+                            <span class="profile-name"><?= esc($authDisplayName) ?></span>
+                            <span class="profile-role"><?= esc($authRoleLabel) ?></span>
                         </div>
                         <i class="fa-solid fa-chevron-down" style="font-size: 12px; color: var(--text-muted);"></i>
                     </div>
                     
                     <div class="profile-dropdown-menu" id="profileDropdownMenu">
-                        <div class="dropdown-header">Switch Role (Mockup)</div>
-                        <a href="<?= base_url('/?role=superadmin') ?>" class="dropdown-item">
-                            <div class="dropdown-icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
-                                <i class="fa-solid fa-user-shield"></i>
-                            </div>
-                            <div class="dropdown-text">Login sebagai Super Admin</div>
+                        <div class="dropdown-header"><?= esc($authDisplayName) ?></div>
+                        <a class="dropdown-item" href="<?= base_url('/ubah-password') ?>">
+                            <i class="fa-solid fa-key"></i> Ubah Password
                         </a>
-                        <a href="<?= base_url('/?role=admin') ?>" class="dropdown-item">
-                            <div class="dropdown-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
-                                <i class="fa-solid fa-user-gear"></i>
-                            </div>
-                            <div class="dropdown-text">Login sebagai Admin Bangsal</div>
-                        </a>
-                        <a href="<?= base_url('/?role=direktur') ?>" class="dropdown-item">
-                            <div class="dropdown-icon" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;">
-                                <i class="fa-solid fa-user-tie"></i>
-                            </div>
-                            <div class="dropdown-text">Login sebagai Direktur</div>
-                        </a>
-                        <a href="<?= base_url('/profil-pegawai?role=pegawai') ?>" class="dropdown-item">
-                            <i class="fa-solid fa-user" style="width: 20px;"></i> Pegawai
-                        </a>
+                        <form method="post" action="<?= base_url('/logout') ?>" style="padding: 10px 16px;">
+                            <?= csrf_field() ?>
+                            <button type="submit" class="btn btn-outline" style="width: 100%; justify-content: center;">
+                                <i class="fa-solid fa-right-from-bracket"></i> Keluar
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -869,30 +817,17 @@
         // --- Profile Dropdown Logic ---
         const profileDropdownBtn = document.getElementById('profileDropdownBtn');
         const profileDropdownMenu = document.getElementById('profileDropdownMenu');
-        const updateInfoBtn = document.getElementById('updateInfoBtn');
-        const updateInfoMenu = document.getElementById('updateInfoMenu');
         
         if (profileDropdownBtn && profileDropdownMenu) {
             profileDropdownBtn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 profileDropdownMenu.classList.toggle('show');
-                if (updateInfoMenu) updateInfoMenu.classList.remove('show');
-            });
-        }
-
-        // --- Update Info Dropdown Logic ---
-        if (updateInfoBtn && updateInfoMenu) {
-            updateInfoBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                updateInfoMenu.classList.toggle('show');
-                if (profileDropdownMenu) profileDropdownMenu.classList.remove('show');
             });
         }
 
         // Close dropdowns when clicking outside
         document.addEventListener('click', function() {
             if (profileDropdownMenu) profileDropdownMenu.classList.remove('show');
-            if (updateInfoMenu) updateInfoMenu.classList.remove('show');
         });
 
         // Theme Toggle Functionality

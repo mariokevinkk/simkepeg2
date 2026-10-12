@@ -1,6 +1,7 @@
 <?= $this->extend('layout/main') ?>
 
 <?= $this->section('content') ?>
+<?php $employeeProfile = $employee_profile ?? \App\Libraries\EmployeeProfileData::get(); ?>
 <style>
     .section-title {
         margin: 32px 0 16px 0;
@@ -45,6 +46,7 @@
         <thead><tr><th>NO</th><th>INSTANSI</th><th>JABATAN</th><th>TAHUN</th><th>BULAN</th><th>AKSI</th></tr></thead>
         <tbody><tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 16px;">Tidak ada data</td></tr></tbody>
     </table>
+    <?= view('employee_attachment_group', ['employee_profile' => $employeeProfile, 'document_group' => 'pengalaman', 'document_mode' => 'edit']) ?>
 
     <h4 class="section-title"><i class="fa-solid fa-language"></i> Q. Penguasaan Bahasa</h4>
     <table class="data-table" style="margin-bottom: 32px;">
@@ -57,6 +59,7 @@
         <thead><tr><th>NO</th><th>HUKUMAN</th><th>TINGKAT</th><th>NO & TGL SK</th><th>MULAI - SELESAI</th><th>PEJABAT PENGESAH</th><th>AKSI</th></tr></thead>
         <tbody><tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 16px;">Tidak ada data</td></tr></tbody>
     </table>
+    <?= view('employee_attachment_group', ['employee_profile' => $employeeProfile, 'document_group' => 'sanksi', 'document_mode' => 'edit']) ?>
 
     <h4 class="section-title"><i class="fa-solid fa-ellipsis"></i> S. Lain-lain</h4>
     <table class="data-table">
