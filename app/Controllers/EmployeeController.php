@@ -381,6 +381,35 @@ class EmployeeController extends BaseController
         return redirect()->back()->with('success', 'Data pegawai, riwayat, dan pendidikan berhasil disimpan.');
     }
 
+    /**
+     * Marks an employee as retired once the TMT pensiun has arrived: status and kedudukan become
+     * "Pensiun" and the linked login account is disabled. The employee's data stays in place.
+     */
+    public function retire(int $employeeId)
+    {
+        $employee = $this->visibleEmployee($employeeId);
+        if ($employee === null || ! EmployeeAccess::can('employees.update', $employee) || (EmployeeAccess::user()['role'] ?? '') === 'pegawai') {
+            return redirect()->to('/pensiun')->with('error', 'Anda tidak memiliki hak untuk menetapkan pensiun pegawai ini.');
+        }
+        $info = EmployeeProfileData::retirementInfo($employee);
+        if ($info === null || ! $info['past_due']) {
+            return redirect()->to('/pensiun')->with('error', 'TMT pensiun ' . $employee['nama'] . ' belum tiba.');
+        }
+
+        $db = db_connect();
+        $db->transStart();
+        (new EmployeeModel())->update($employeeId, ['employee_status' => 'Pensiun', 'kedudukan' => 'Pensiun']);
+        if ((int) ($employee['user_id'] ?? 0) > 0) {
+            (new UserModel())->update((int) $employee['user_id'], ['status' => 'disabled']);
+        }
+        $db->transComplete();
+        if ($db->transStatus() === false) {
+            return redirect()->to('/pensiun')->with('error', 'Status pensiun gagal disimpan.');
+        }
+
+        return redirect()->to('/pensiun')->with('success', $employee['nama'] . ' ditetapkan pensiun per ' . date('d-m-Y', strtotime($info['tmt'])) . '; akun login dinonaktifkan.');
+    }
+
     public function uploadDocument(int $employeeId, string $documentKey)
     {
         $employee = $this->visibleEmployee($employeeId);

@@ -3,7 +3,11 @@
 namespace App\Controllers;
 
 use App\Libraries\EmployeeAccess;
+use App\Libraries\EmployeeDocxExporter;
 use App\Libraries\EmployeeProfileData;
+use App\Libraries\XlsxWriter;
+use App\Models\EmployeeEducationModel;
+use App\Models\EmployeeHistoryModel;
 use App\Models\EmployeeModel;
 use App\Models\EmployeeDocumentModel;
 use App\Models\UnitModel;
@@ -288,15 +292,9 @@ class Home extends BaseController
         ]);
     }
 
-    public function dataPegawai()
+    /** Filters of the employee list, read from the query string (shared by the list and its Excel export). */
+    private function listFilters(): array
     {
-        $canView = EmployeeAccess::can('employees.view');
-        $canCreate = EmployeeAccess::can('employees.create');
-        if (! $canView && ! $canCreate) {
-            return redirect()->to('/profil-pegawai')->with('error', 'Akun Anda tidak memiliki akses ke daftar pegawai.');
-        }
-
-        $user = $this->user();
         $filters = ['q' => trim((string) $this->request->getGet('q'))];
         foreach (array_keys(EmployeeModel::LIST_FILTER_COLUMNS) as $key) {
             $filters[$key] = trim((string) $this->request->getGet($key));
@@ -308,15 +306,185 @@ class Home extends BaseController
             ? (string) $this->request->getGet('filter_dokumen')
             : '';
 
-        $filterOptions = $canView ? $this->employeeModel()->filterOptions($user) : array_fill_keys(array_keys(EmployeeModel::LIST_FILTER_COLUMNS), []);
-        $employees = $canView ? $this->employeeModel()->visibleTo($user, $filters) : [];
+        return $filters;
+    }
+
+    /**
+     * Excel export of every employee matching the current list filters: one sheet, one row per
+     * employee; sections A-F one field per column, each repeatable section G-X in a single column.
+     */
+    public function exportExcel()
+    {
+        if (! EmployeeAccess::can('employees.view') || $this->isPegawai()) {
+            return redirect()->to('/data-pegawai')->with('error', 'Akun Anda tidak memiliki akses untuk mengunduh data pegawai.');
+        }
+
+        $filters = $this->listFilters();
+        $employees = $this->employeeModel()->visibleTo($this->user(), $filters);
         $checklists = (new EmployeeDocumentModel())->checklistStatus($employees);
-        $list = [];
-        foreach ($employees as $employee) {
-            $checklist = $checklists[(int) $employee['id']] ?? ['entries' => [], 'summary' => ['total' => 0, 'uploaded' => 0, 'pending' => 0, 'missing' => [], 'complete' => true]];
-            if ($filters['filter_dokumen'] !== '' && $checklist['summary']['complete'] !== ($filters['filter_dokumen'] === 'lengkap')) {
-                continue;
+        if ($filters['filter_dokumen'] !== '') {
+            $wantComplete = $filters['filter_dokumen'] === 'lengkap';
+            $employees = array_values(array_filter(
+                $employees,
+                static fn (array $employee): bool => ($checklists[(int) $employee['id']]['summary']['complete'] ?? true) === $wantComplete,
+            ));
+        }
+
+        helper('employee_form');
+        $plain = static fn ($value, array $field): string => html_entity_decode(strip_tags(employee_field_display($value, $field)), ENT_QUOTES, 'UTF-8');
+        $plainOrEmpty = static fn ($value, array $field): string => ($text = $plain($value, $field)) === '—' ? '' : $text;
+
+        // Columns: sections A-F one field per column; a label used in several sections gets its section's subject.
+        $coreSections = array_merge(EmployeeProfileData::officialCoreSections(), [EmployeeProfileData::officialLatestEducationSection()]);
+        $subjects = ['A' => 'Identitas', 'B' => 'CPNS', 'C' => 'PNS', 'D' => 'Pangkat', 'E' => 'Jabatan', 'F' => 'Pendidikan'];
+        $labelCount = [];
+        foreach ($coreSections as $section) {
+            foreach ($section['fields'] as $field) {
+                $labelCount[$field[1]] = ($labelCount[$field[1]] ?? 0) + 1;
             }
+        }
+        $headers = ['No', 'Unit'];
+        foreach ($coreSections as $section) {
+            foreach ($section['fields'] as $field) {
+                $headers[] = $labelCount[$field[1]] > 1 ? $field[1] . ' (' . $subjects[$section['letter']] . ')' : $field[1];
+            }
+        }
+
+        // Repeatable sections G-X: one column each, every record written on the same line.
+        $repeatSections = [];
+        foreach (EmployeeProfileData::officialHistorySections() as $category => $section) {
+            $repeatSections[$section['letter']] = ['key' => $category, 'title' => $section['title'], 'fields' => $section['fields']];
+        }
+        $repeatSections['J'] = ['key' => 'education', 'title' => 'RIWAYAT PENDIDIKAN', 'fields' => EmployeeProfileData::educationFields()];
+        ksort($repeatSections);
+        foreach ($repeatSections as $section) {
+            $headers[] = ucwords(mb_strtolower($section['title']), " /-");
+        }
+        array_push($headers, 'Dokumen wajib terunggah', 'Dokumen wajib kurang');
+
+        $ids = array_map(static fn (array $employee): int => (int) $employee['id'], $employees);
+        $records = [];
+        if ($ids !== []) {
+            foreach ((new EmployeeHistoryModel())->whereIn('employee_id', $ids)->orderBy('employee_id')->orderBy('sort_order')->findAll() as $history) {
+                $records[(int) $history['employee_id']][$history['category']][] = json_decode((string) $history['data'], true) ?: [];
+            }
+            foreach ((new EmployeeEducationModel())->whereIn('employee_id', $ids)->orderBy('employee_id')->orderBy('tanggal_ijazah')->findAll() as $education) {
+                $records[(int) $education['employee_id']]['education'][] = $education;
+            }
+        }
+        $oneLine = static fn (string $text): string => trim(preg_replace('/\s+/', ' ', $text) ?? '');
+
+        $rows = [];
+        foreach ($employees as $index => $employee) {
+            $row = [(string) ($index + 1), (string) ($employee['unit_name'] ?? '')];
+            foreach ($coreSections as $section) {
+                foreach ($section['fields'] as $field) {
+                    $row[] = $oneLine($plainOrEmpty($employee[$field[0]] ?? '', $field));
+                }
+            }
+            foreach ($repeatSections as $section) {
+                $entries = [];
+                foreach ($records[(int) $employee['id']][$section['key']] ?? [] as $number => $record) {
+                    $parts = [];
+                    foreach ($section['fields'] as $field) {
+                        $value = $oneLine($plainOrEmpty($record[$field[0]] ?? '', $field));
+                        if ($value !== '') {
+                            $parts[] = $value;
+                        }
+                    }
+                    if ($parts !== []) {
+                        $entries[] = ($number + 1) . ') ' . implode(', ', $parts);
+                    }
+                }
+                $row[] = implode('; ', $entries);
+            }
+            $summary = $checklists[(int) $employee['id']]['summary'] ?? ['uploaded' => 0, 'total' => 0, 'missing' => []];
+            $row[] = $summary['uploaded'] . ' / ' . $summary['total'];
+            $row[] = implode(', ', $summary['missing']);
+            $rows[] = $row;
+        }
+
+        $writer = (new XlsxWriter())->addSheet('Data Pegawai', $headers, $rows);
+
+        $temp = tempnam(sys_get_temp_dir(), 'xlsx');
+        try {
+            $writer->save($temp);
+            $contents = (string) file_get_contents($temp);
+        } finally {
+            @unlink($temp);
+        }
+
+        return $this->response->download('data-pegawai-' . date('Y-m-d') . '.xlsx', $contents)
+            ->setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    /** Word download of one employee, filled into the official "Data Pegawai" form. */
+    public function exportWord()
+    {
+        $user = $this->user();
+        $employeeId = $this->requestedEmployeeId();
+        $employee = $employeeId > 0 ? $this->employeeModel()->findVisibleById($employeeId, $user) : null;
+        if ($employee === null || ! EmployeeAccess::can('employees.view', $employee)) {
+            return redirect()->back()->with('error', 'Data pegawai tidak ditemukan atau akun Anda tidak memiliki akses.');
+        }
+
+        $bundle = $this->employeeModel()->bundle($employeeId);
+        $contents = (new EmployeeDocxExporter())->build($bundle);
+        $name = trim(preg_replace('/[^A-Za-z0-9 ._-]+/', '', $employee['nama'] . ' ' . $employee['nip']) ?? 'pegawai');
+
+        return $this->response->download('Data Pegawai - ' . $name . '.docx', $contents)
+            ->setContentType('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    }
+
+    public function dataPegawai()
+    {
+        $canView = EmployeeAccess::can('employees.view');
+        $canCreate = EmployeeAccess::can('employees.create');
+        if (! $canView && ! $canCreate) {
+            return redirect()->to('/profil-pegawai')->with('error', 'Akun Anda tidak memiliki akses ke daftar pegawai.');
+        }
+
+        $user = $this->user();
+        $filters = $this->listFilters();
+
+        $filterOptions = $canView ? $this->employeeModel()->filterOptions($user) : array_fill_keys(array_keys(EmployeeModel::LIST_FILTER_COLUMNS), []);
+        // Pagination: page size from ?per_page (10/25/50/100), page number from ?page.
+        $perPageOptions = [10, 25, 50, 100];
+        $perPage = (int) $this->request->getGet('per_page');
+        if (! in_array($perPage, $perPageOptions, true)) {
+            $perPage = 25;
+        }
+        $page = max(1, (int) $this->request->getGet('page'));
+        $emptySummary = ['entries' => [], 'summary' => ['total' => 0, 'uploaded' => 0, 'pending' => 0, 'missing' => [], 'complete' => true]];
+        $documentModel = new EmployeeDocumentModel();
+
+        if (! $canView) {
+            $total = 0;
+            $pageEmployees = [];
+            $checklists = [];
+        } elseif ($filters['filter_dokumen'] === '') {
+            // Only the rows of the current page are read from the database.
+            $total = $this->employeeModel()->countVisibleTo($user, $filters);
+            $page = min($page, max(1, (int) ceil($total / $perPage)));
+            $pageEmployees = $this->employeeModel()->visibleTo($user, $filters, $perPage, ($page - 1) * $perPage);
+            $checklists = $documentModel->checklistStatus($pageEmployees);
+        } else {
+            // Document completeness is computed, not stored, so filter first and page afterwards.
+            $matching = $this->employeeModel()->visibleTo($user, $filters);
+            $checklists = $documentModel->checklistStatus($matching);
+            $wantComplete = $filters['filter_dokumen'] === 'lengkap';
+            $matching = array_values(array_filter(
+                $matching,
+                static fn (array $employee): bool => ($checklists[(int) $employee['id']] ?? $emptySummary)['summary']['complete'] === $wantComplete,
+            ));
+            $total = count($matching);
+            $page = min($page, max(1, (int) ceil($total / $perPage)));
+            $pageEmployees = array_slice($matching, ($page - 1) * $perPage, $perPage);
+        }
+
+        $list = [];
+        foreach ($pageEmployees as $employee) {
+            $checklist = $checklists[(int) $employee['id']] ?? $emptySummary;
             // STR & SIP/SIK due date comes from the uploaded document (only for health workers).
             $strSip = null;
             foreach ($checklist['entries'] as $entry) {
@@ -355,6 +523,13 @@ class Home extends BaseController
             'jabatanOptions' => $filterOptions['filter_jabatan'],
             'jenjangOptions' => $filterOptions['filter_jenjang'],
             'has_filter' => array_filter($filters) !== [],
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'per_page_options' => $perPageOptions,
+                'total' => $total,
+                'pages' => max(1, (int) ceil($total / $perPage)),
+            ],
         ] + $filters);
     }
 
@@ -409,11 +584,36 @@ class Home extends BaseController
         if (! EmployeeAccess::can('employees.view')) {
             return redirect()->to('/');
         }
-        $employees = array_values(array_filter(
-            $this->employeeModel()->visibleTo($this->user()),
-            static fn (array $employee): bool => str_contains(mb_strtolower($employee['employee_status'] . ' ' . $employee['kedudukan']), 'pensiun'),
-        ));
-        return view('pensiun', ['active_menu' => 'pensiun', 'role' => $this->role(), 'retiredEmployees' => $employees]);
+        // Range for "akan pensiun", in months ahead; overdue employees are always listed.
+        $windows = [6 => '6 bulan', 12 => '1 tahun', 24 => '2 tahun', 60 => '5 tahun'];
+        $window = (int) $this->request->getGet('rentang');
+        if (! isset($windows[$window])) {
+            $window = 24;
+        }
+
+        $retired = [];
+        $upcoming = [];
+        foreach ($this->employeeModel()->visibleTo($this->user()) as $employee) {
+            if (str_contains(mb_strtolower($employee['employee_status'] . ' ' . $employee['kedudukan']), 'pensiun')) {
+                $retired[] = $employee;
+                continue;
+            }
+            $info = EmployeeProfileData::retirementInfo($employee);
+            if ($info !== null && $info['months_left'] <= $window) {
+                $upcoming[] = $employee + ['pensiun' => $info];
+            }
+        }
+        usort($upcoming, static fn (array $a, array $b): int => strcmp($a['pensiun']['tmt'], $b['pensiun']['tmt']));
+
+        return view('pensiun', [
+            'active_menu' => 'pensiun',
+            'role' => $this->role(),
+            'retiredEmployees' => $retired,
+            'upcomingEmployees' => $upcoming,
+            'windows' => $windows,
+            'window' => $window,
+            'can_retire' => EmployeeAccess::can('employees.update'),
+        ]);
     }
 
     public function manajemenBangsal()

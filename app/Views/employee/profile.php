@@ -48,7 +48,8 @@ $sectionDocuments = $checklist['by_section'] ?? [];
         <h1 class="page-title" style="margin:0;"><?= esc($profilePages[$currentPage]['title'] ?? 'Data Pegawai') ?></h1>
         <div style="color:var(--text-muted);margin-top:5px;">NIP <?= esc($employee['nip'] ?? '') ?></div>
     </div>
-    <div style="display:flex;gap:10px;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a class="btn btn-outline" href="<?= base_url('/data-pegawai/word' . ($isPegawaiView ? '' : '?id=' . $employeeId)) ?>" style="text-decoration:none;" title="Formulir Data Pegawai Kota Yogyakarta dalam format Word"><i class="fa-solid fa-file-word"></i> Unduh Word</a>
         <?php if (! $editable && ! empty($can_edit)): ?>
             <a class="btn btn-primary" href="<?= $isPegawaiView ? base_url('/' . $currentPage) : base_url('/edit-pegawai?id=' . $employeeId . '&bagian=' . $currentPage) ?>"><i class="fa-solid fa-pen"></i> Edit data</a>
         <?php endif; ?>

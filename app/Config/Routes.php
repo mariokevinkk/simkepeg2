@@ -12,6 +12,8 @@ $routes->post('/logout', 'AuthController::logout', ['filter' => 'csrf']);
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes): void {
     $routes->get('/', 'Home::index');
     $routes->get('/data-pegawai', 'Home::dataPegawai');
+    $routes->get('/data-pegawai/excel', 'Home::exportExcel');
+    $routes->get('/data-pegawai/word', 'Home::exportWord');
     $routes->get('/laporan', 'Home::laporan');
     $routes->get('/pengaturan', 'Home::pengaturan');
     $routes->get('/manajemen-akun', 'AdminManagementController::accounts');
@@ -24,6 +26,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('/manajemen-bangsal/(:num)/status', 'AdminManagementController::updateUnitStatus/$1', ['filter' => 'csrf']);
     $routes->get('/detail-bangsal', 'Home::detailBangsal');
     $routes->get('/pensiun', 'Home::pensiun');
+    $routes->post('/pensiun/(:num)/tetapkan', 'EmployeeController::retire/$1', ['filter' => 'csrf']);
     $routes->get('/profil-pegawai', 'Home::profilPegawai');
     $routes->get('/edit-pegawai', 'Home::editPegawai');
     $routes->get('/view-pegawai', 'Home::viewPegawai');

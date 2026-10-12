@@ -239,6 +239,49 @@ final class EmployeeProfileData
     }
 
     /**
+     * Batas usia pensiun (BUP) ASN: 65 untuk jabatan fungsional ahli utama, 60 untuk ahli madya
+     * dan pimpinan tinggi, 58 untuk lainnya. Pegawai non-ASN mengikuti 58 tahun.
+     */
+    public static function retirementAge(array $employee): int
+    {
+        $job = mb_strtolower(($employee['jabatan_nama'] ?? '') . ' ' . ($employee['jenjang_jabatan'] ?? ''));
+        if (str_contains($job, 'ahli utama')) {
+            return 65;
+        }
+        if (str_contains($job, 'ahli madya') || str_contains($job, 'pimpinan tinggi') || str_contains($job, 'direktur')) {
+            return 60;
+        }
+
+        return 58;
+    }
+
+    /**
+     * Retirement figures for one employee, or null without a valid birth date:
+     * the BUP, the date it is reached, and the TMT pensiun (first day of the following month).
+     */
+    public static function retirementInfo(array $employee, ?\DateTimeImmutable $today = null): ?array
+    {
+        $birth = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) ($employee['tanggal_lahir'] ?? ''));
+        if ($birth === false) {
+            return null;
+        }
+        $today ??= new \DateTimeImmutable('today');
+        $age = self::retirementAge($employee);
+        $reached = $birth->modify('+' . $age . ' years');
+        $tmt = $reached->modify('first day of next month');
+        $months = ((int) $tmt->format('Y') - (int) $today->format('Y')) * 12 + (int) $tmt->format('n') - (int) $today->format('n');
+
+        return [
+            'bup' => $age,
+            'age_now' => $birth->diff($today)->y,
+            'reached' => $reached->format('Y-m-d'),
+            'tmt' => $tmt->format('Y-m-d'),
+            'months_left' => $months,
+            'past_due' => $tmt <= $today,
+        ];
+    }
+
+    /**
      * The employee form split into pages (sidebar menu for pegawai, tabs for admins).
      * `sections` are form letters; DOKUMEN is the document checklist card.
      */

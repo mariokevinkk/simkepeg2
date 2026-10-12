@@ -72,15 +72,15 @@ class EmployeeModel extends Model
         return true;
     }
 
-    public function visibleTo(array $user, array $filters = []): array
+    /** Query for the employees the user may see, with the list filters applied; null when none. */
+    private function listQuery(array $user, array $filters)
     {
         $builder = $this->select('employees.*, units.name AS unit_name')
-            ->join('units', 'units.id = employees.unit_id', 'left')
-            ->orderBy('employees.nama');
+            ->join('units', 'units.id = employees.unit_id', 'left');
 
         if (! $this->scopeVisibleTo($builder, $user)) {
             $builder->resetQuery();
-            return [];
+            return null;
         }
 
         $q = trim((string) ($filters['q'] ?? ''));
@@ -103,7 +103,26 @@ class EmployeeModel extends Model
             $builder->where('employees.jpl_completed >=', 20);
         }
 
-        return $builder->findAll();
+        return $builder;
+    }
+
+    /** Employees the user may see, filtered and sorted by name; $limit/$offset select one page. */
+    public function visibleTo(array $user, array $filters = [], ?int $limit = null, int $offset = 0): array
+    {
+        $builder = $this->listQuery($user, $filters);
+        if ($builder === null) {
+            return [];
+        }
+
+        return $builder->orderBy('employees.nama')->orderBy('employees.id')->findAll($limit ?? 0, $offset);
+    }
+
+    /** Number of employees visibleTo() would return for the same filters. */
+    public function countVisibleTo(array $user, array $filters = []): int
+    {
+        $builder = $this->listQuery($user, $filters);
+
+        return $builder === null ? 0 : $builder->countAllResults();
     }
 
     /**

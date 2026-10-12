@@ -9,6 +9,16 @@
     .employee-count { color:var(--text-muted); font-size:13px; }
     @media(max-width:1050px) { .employee-filter { grid-template-columns:repeat(3,minmax(0,1fr)); } }
     @media(max-width:650px) { .employee-filter { grid-template-columns:1fr 1fr; } .employee-filter .search-wide { grid-column:1/-1; } }
+    .employee-pagination { align-items:center; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; margin:14px 0 0; }
+    .employee-pages { display:flex; flex-wrap:wrap; gap:4px; }
+    .employee-pages a, .employee-pages span { align-items:center; border:1px solid var(--border); border-radius:8px; color:var(--text-main); display:inline-flex; font-size:13px; height:34px; justify-content:center; min-width:34px; padding:0 8px; text-decoration:none; background:var(--bg-surface); }
+    .employee-pages a:hover { border-color:var(--primary); color:var(--primary); }
+    .employee-pages .is-current { background:var(--primary); border-color:var(--primary); color:#fff; font-weight:700; }
+    .employee-pages .is-disabled { color:var(--text-muted); opacity:.5; }
+    .employee-pages .is-gap { border-color:transparent; background:transparent; }
+    .employee-per-page { align-items:center; display:flex; gap:8px; white-space:nowrap; }
+    .employee-per-page select { width:auto; padding:6px 10px; }
+    @media(max-width:650px) { .employee-pagination { justify-content:center; } }
     .missing-docs-button { align-items:center; background:#fef2f2; border:1px solid #fecaca; border-radius:999px; color:#b91c1c; cursor:pointer; display:inline-flex; font-size:11px; font-weight:700; gap:5px; margin-top:5px; padding:4px 10px; white-space:nowrap; }
     .missing-docs-button:hover { background:#fee2e2; }
     .missing-docs-modal { align-items:center; background:rgba(15,23,42,.55); display:none; inset:0; justify-content:center; padding:16px; position:fixed; z-index:1300; }
@@ -20,11 +30,16 @@
 </style>
 <div class="flex-mobile-stack" style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
     <div><h1 class="page-title" style="margin:0;">Data Pegawai</h1><p class="employee-count" style="margin:5px 0 0;">Daftar sesuai unit yang dapat diakses akun Anda.</p></div>
-    <?php if (! empty($can_create)): ?><a class="btn btn-primary" href="<?= base_url('/employees/new') ?>" style="text-decoration:none;"><i class="fa-solid fa-user-plus"></i> Tambah pegawai</a><?php endif; ?>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <?php $exportQuery = array_filter(service('request')->getGet() ?? [], static fn ($value, $key): bool => is_scalar($value) && $value !== '' && ! in_array($key, ['page', 'per_page'], true), ARRAY_FILTER_USE_BOTH); ?>
+        <a class="btn btn-outline" href="<?= esc(base_url('/data-pegawai/excel') . ($exportQuery !== [] ? '?' . http_build_query($exportQuery) : '')) ?>" style="text-decoration:none;" title="Semua pegawai yang cocok dengan filter, beserta seluruh riwayatnya"><i class="fa-solid fa-file-excel"></i> Unduh Excel</a>
+        <?php if (! empty($can_create)): ?><a class="btn btn-primary" href="<?= base_url('/employees/new') ?>" style="text-decoration:none;"><i class="fa-solid fa-user-plus"></i> Tambah pegawai</a><?php endif; ?>
+    </div>
 </div>
 <?php if ($error = session()->getFlashdata('error')): ?><div class="main-card" style="margin-top:16px;color:var(--danger);padding:12px 16px;"><?= esc($error) ?></div><?php endif; ?>
 <?php if ($success = session()->getFlashdata('success')): ?><div class="main-card" style="margin-top:16px;color:var(--success);padding:12px 16px;"><?= esc($success) ?></div><?php endif; ?>
 <form class="employee-filter" method="get" action="<?= base_url('/data-pegawai') ?>">
+    <input type="hidden" name="per_page" value="<?= (int) $pagination['per_page'] ?>">
     <input class="form-control search-wide" type="search" name="q" value="<?= esc($q ?? '') ?>" placeholder="Cari nama atau NIP">
     <?php
     $selects = [
@@ -46,7 +61,27 @@
         <?php if (! empty($has_filter)): ?><a class="btn btn-outline" style="text-decoration:none;" href="<?= base_url('/data-pegawai') ?>"><i class="fa-solid fa-rotate-left"></i> Reset</a><?php endif; ?>
     </div>
 </form>
-<p class="employee-count" style="margin:0 0 12px;"><?= count($pegawaiList) ?> pegawai</p>
+<?php
+$firstRow = $pagination['total'] === 0 ? 0 : ($pagination['page'] - 1) * $pagination['per_page'] + 1;
+$lastRow = min($pagination['total'], $pagination['page'] * $pagination['per_page']);
+// Link to another page with every current filter kept.
+$pageUrl = static function (int $page, ?int $perPage = null): string {
+    $query = array_filter(service('request')->getGet() ?? [], static fn ($value): bool => is_scalar($value) && $value !== '');
+    $query['page'] = $page;
+    if ($perPage !== null) {
+        $query['per_page'] = $perPage;
+    }
+    return base_url('/data-pegawai') . '?' . http_build_query($query);
+};
+// Page numbers to show: first, last, and two on each side of the current page.
+$pageNumbers = [];
+for ($number = 1; $number <= $pagination['pages']; $number++) {
+    if ($number === 1 || $number === $pagination['pages'] || abs($number - $pagination['page']) <= 2) {
+        $pageNumbers[] = $number;
+    }
+}
+?>
+<p class="employee-count" style="margin:0 0 12px;"><?= $pagination['total'] ?> pegawai<?= $pagination['total'] > 0 ? ' · menampilkan ' . $firstRow . '–' . $lastRow : '' ?></p>
 <div class="main-card employee-table-wrap" style="padding:0;">
     <table class="data-table">
         <thead><tr><th>Nama / NIP</th><th>Unit</th><th>Jenis ketenagaan</th><th>Status kepegawaian</th><th>Status data</th><th>Jabatan</th><th>STR &amp; SIP</th><th>Dokumen wajib</th><th>Jenjang</th><th>JPL</th><th>Aksi</th></tr></thead>
@@ -93,6 +128,39 @@
         </tbody>
     </table>
 </div>
+<?php if ($pagination['total'] > 0): ?>
+<div class="employee-pagination">
+    <span class="employee-count">Menampilkan <?= $firstRow ?>–<?= $lastRow ?> dari <?= $pagination['total'] ?> pegawai</span>
+    <nav class="employee-pages" aria-label="Halaman data pegawai">
+        <?php if ($pagination['page'] > 1): ?>
+            <a href="<?= esc($pageUrl($pagination['page'] - 1)) ?>" aria-label="Halaman sebelumnya"><i class="fa-solid fa-chevron-left"></i></a>
+        <?php else: ?>
+            <span class="is-disabled" aria-hidden="true"><i class="fa-solid fa-chevron-left"></i></span>
+        <?php endif; ?>
+        <?php $previous = 0; foreach ($pageNumbers as $number): ?>
+            <?php if ($number - $previous > 1): ?><span class="is-gap">…</span><?php endif; ?>
+            <?php if ($number === $pagination['page']): ?>
+                <span class="is-current" aria-current="page"><?= $number ?></span>
+            <?php else: ?>
+                <a href="<?= esc($pageUrl($number)) ?>"><?= $number ?></a>
+            <?php endif; ?>
+        <?php $previous = $number; endforeach; ?>
+        <?php if ($pagination['page'] < $pagination['pages']): ?>
+            <a href="<?= esc($pageUrl($pagination['page'] + 1)) ?>" aria-label="Halaman berikutnya"><i class="fa-solid fa-chevron-right"></i></a>
+        <?php else: ?>
+            <span class="is-disabled" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+        <?php endif; ?>
+    </nav>
+    <label class="employee-count employee-per-page">Tampilkan
+        <select class="form-control" onchange="window.location.href = this.value" aria-label="Jumlah baris per halaman">
+            <?php foreach ($pagination['per_page_options'] as $option): ?>
+                <option value="<?= esc($pageUrl(1, $option)) ?>" <?= $option === $pagination['per_page'] ? 'selected' : '' ?>><?= $option ?></option>
+            <?php endforeach; ?>
+        </select>
+        per halaman
+    </label>
+</div>
+<?php endif; ?>
 <div class="missing-docs-modal" id="missing-docs-modal" role="dialog" aria-modal="true" aria-labelledby="missing-docs-title">
     <div class="missing-docs-dialog">
         <h2 id="missing-docs-title">Dokumen wajib yang belum lengkap</h2>
