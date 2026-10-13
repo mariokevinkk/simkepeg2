@@ -712,16 +712,21 @@ $authRoleLabel = match ($authUser['role'] ?? '') {
             </a>
             <?php endif; ?>
             
-            <?php if($role !== 'admin' && $role !== 'direktur'): ?>
-            <a href="<?= base_url('/pensiun?role='.$role) ?>" class="nav-item <?= ($active_menu == 'pensiun') ? 'active' : '' ?>">
-                <i class="fa-solid fa-user-clock"></i> Data Pensiun
+            <?php if($role !== 'pegawai' && $role !== 'direktur'): ?>
+            <a href="<?= base_url('/pegawai-nonaktif') ?>" class="nav-item <?= in_array($active_menu ?? '', ['pegawai-nonaktif', 'pensiun'], true) ? 'active' : '' ?>">
+                <i class="fa-solid fa-user-slash"></i> Data Pegawai Nonaktif
             </a>
             <?php endif; ?>
             
             <div class="nav-label">Settings</div>
+            <?php if(in_array($role ?? '', ['superadmin', 'admin'], true)): ?>
+            <a href="<?= base_url('/manajemen-jabatan') ?>" class="nav-item <?= ($active_menu == 'manajemen-jabatan') ? 'active' : '' ?>">
+                <i class="fa-solid fa-briefcase-medical"></i> Manajemen Jabatan
+            </a>
+            <?php endif; ?>
             <?php if(!isset($role) || $role === 'superadmin'): ?>
             <a href="<?= base_url('/manajemen-bangsal?role='.$role) ?>" class="nav-item <?= ($active_menu == 'manajemen-bangsal') ? 'active' : '' ?>">
-                <i class="fa-solid fa-hospital"></i> Manajemen Bangsal
+                <i class="fa-solid fa-hospital"></i> Manajemen Unit
             </a>
             <a href="<?= base_url('/manajemen-admin?role='.$role) ?>" class="nav-item <?= ($active_menu == 'manajemen-admin') ? 'active' : '' ?>">
                 <i class="fa-solid fa-user-shield"></i> Manajemen Admin

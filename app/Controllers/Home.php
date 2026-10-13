@@ -10,6 +10,8 @@ use App\Models\EmployeeEducationModel;
 use App\Models\EmployeeHistoryModel;
 use App\Models\EmployeeModel;
 use App\Models\EmployeeDocumentModel;
+use App\Models\JobTitleModel;
+use App\Models\RetirementBupModel;
 use App\Models\UnitModel;
 
 class Home extends BaseController
@@ -22,6 +24,13 @@ class Home extends BaseController
     private function role(): string
     {
         return ($this->user()['role'] ?? '') === 'admin_unit' ? 'admin' : ($this->user()['role'] ?? 'pegawai');
+    }
+
+    private function isInactiveEmployee(array $employee): bool
+    {
+        $inactiveStatuses = EmployeeModel::INACTIVE_EMPLOYEE_STATUSES;
+        return in_array(mb_strtolower(trim((string) ($employee['employee_status'] ?? ''))), $inactiveStatuses, true)
+            || in_array(mb_strtolower(trim((string) ($employee['kedudukan'] ?? ''))), $inactiveStatuses, true);
     }
 
     private function employeeModel(): EmployeeModel
@@ -92,6 +101,58 @@ class Home extends BaseController
         return str_contains($level, 'ahli') || str_contains($level, 'spesialis')
             ? 'expert'
             : 'skilled';
+    }
+
+    private function dashboardAggregate(array $employees): array
+    {
+        $employmentCounts = array_fill_keys([
+            'cpns', 'pns', 'pppk_full', 'pppk_part', 'blud_permanent', 'blud_contract',
+            'mitra_full', 'mitra_part', 'other',
+        ], 0);
+        $jobGroups = [];
+        foreach ($employees as $employee) {
+            $category = $this->employmentCategory((string) ($employee['jenis_kepegawaian'] ?? ''));
+            $employmentCounts[$category]++;
+            $sourceJob = trim((string) ($employee['jabatan_nama'] ?? ''));
+            if ($sourceJob === '') {
+                $sourceJob = trim((string) ($employee['jenis_ketenagaan'] ?? ''));
+            }
+            $jobName = $this->dashboardJobLabel($sourceJob);
+            $jobKey = mb_strtolower($jobName);
+            $seniority = $this->dashboardSeniorityCategory($sourceJob, (string) ($employee['jenjang_jabatan'] ?? ''));
+            if (! isset($jobGroups[$jobKey])) {
+                $jobGroups[$jobKey] = ['name' => $jobName, 'total' => 0, 'expert' => 0, 'skilled' => 0, 'specific' => 0, 'subroles' => []];
+            }
+            $jobGroups[$jobKey]['total']++;
+            $jobGroups[$jobKey][$seniority]++;
+            if ($jobName === 'Dokter') {
+                $sourceLower = mb_strtolower($sourceJob);
+                $subrole = str_contains($sourceLower, 'spesialis') ? 'Dokter Spesialis' : (str_contains($sourceLower, 'umum') ? 'Dokter Umum' : 'Dokter');
+                $jobGroups[$jobKey]['subroles'][$subrole] = ($jobGroups[$jobKey]['subroles'][$subrole] ?? 0) + 1;
+            }
+        }
+
+        $preferredJobOrder = ['Dokter' => 0, 'Perawat' => 1, 'Bidan' => 2, 'Apoteker' => 3, 'Asisten Apoteker' => 4, 'Analis SDM Aparatur' => 5, 'Pranata Komputer' => 6, 'Pengelola Keuangan' => 7, 'Petugas Kebersihan' => 8];
+        $jobBreakdown = array_values($jobGroups);
+        foreach ($jobBreakdown as &$job) {
+            $job['details'] = [];
+            if ($job['name'] === 'Dokter' && $job['subroles'] !== []) {
+                $subroleOrder = ['Dokter Umum' => 0, 'Dokter Spesialis' => 1, 'Dokter' => 2];
+                uksort($job['subroles'], static fn (string $a, string $b): int => ($subroleOrder[$a] ?? 99) <=> ($subroleOrder[$b] ?? 99));
+                foreach ($job['subroles'] as $label => $count) { $job['details'][] = ['label' => $label, 'count' => $count]; }
+            } else {
+                if ($job['expert'] > 0) { $job['details'][] = ['label' => $job['name'] === 'Perawat' ? 'Kategori Ahli (Profesi)' : 'Kategori Ahli', 'count' => $job['expert']]; }
+                if ($job['skilled'] > 0) { $job['details'][] = ['label' => $job['name'] === 'Perawat' ? 'Kategori Terampil (Vokasi)' : 'Kategori Terampil', 'count' => $job['skilled']]; }
+            }
+            unset($job['subroles']);
+        }
+        unset($job);
+        usort($jobBreakdown, static function (array $a, array $b) use ($preferredJobOrder): int {
+            $aOrder = $preferredJobOrder[$a['name']] ?? PHP_INT_MAX;
+            $bOrder = $preferredJobOrder[$b['name']] ?? PHP_INT_MAX;
+            return $aOrder === $bOrder ? strcasecmp($a['name'], $b['name']) : $aOrder <=> $bOrder;
+        });
+        return ['employee_count' => count($employees), 'employment_counts' => $employmentCounts, 'job_breakdown' => $jobBreakdown];
     }
 
     private function requestedEmployeeId(): int
@@ -170,7 +231,9 @@ class Home extends BaseController
 
         $user = $this->user();
         $canViewEmployees = EmployeeAccess::can('employees.view');
-        $employees = $canViewEmployees ? $this->employeeModel()->visibleTo($user) : [];
+        $employees = $canViewEmployees
+            ? array_values(array_filter($this->employeeModel()->visibleTo($user), fn (array $employee): bool => ! $this->isInactiveEmployee($employee)))
+            : [];
         $units = new UnitModel();
         $unitOptions = ($user['role'] ?? '') === 'superadmin'
             ? $units->activeUnits()
@@ -183,111 +246,39 @@ class Home extends BaseController
         if ($selectedUnit !== '') {
             $employees = array_values(array_filter($employees, static fn (array $employee): bool => $employee['unit_name'] === $selectedUnit));
         }
-
-        $employmentCounts = [
-            'cpns' => 0,
-            'pns' => 0,
-            'pppk_full' => 0,
-            'pppk_part' => 0,
-            'blud_permanent' => 0,
-            'blud_contract' => 0,
-            'mitra_full' => 0,
-            'mitra_part' => 0,
-            'other' => 0,
+        $dashboardScope = (string) $this->request->getGet('scope');
+        $scopeCategories = [
+            'asn' => ['cpns', 'pns', 'pppk_full', 'pppk_part'],
+            'blud' => ['blud_permanent', 'blud_contract'],
+            'mitra' => ['mitra_full', 'mitra_part'],
+            'other' => ['other'],
         ];
-        foreach ($employees as $employee) {
-            $category = $this->employmentCategory((string) ($employee['jenis_kepegawaian'] ?? ''));
-            $employmentCounts[$category]++;
+        if (! isset($scopeCategories[$dashboardScope])) {
+            $dashboardScope = 'all';
         }
-
-        $jobGroups = [];
-        foreach ($employees as $employee) {
-            $sourceJob = trim((string) ($employee['jabatan_nama'] ?? ''));
-            if ($sourceJob === '') {
-                $sourceJob = trim((string) ($employee['jenis_ketenagaan'] ?? ''));
-            }
-            $jobName = $this->dashboardJobLabel($sourceJob);
-            $jobKey = mb_strtolower($jobName);
-            $seniority = $this->dashboardSeniorityCategory(
-                $sourceJob,
-                (string) ($employee['jenjang_jabatan'] ?? ''),
-            );
-
-            if (! isset($jobGroups[$jobKey])) {
-                $jobGroups[$jobKey] = [
-                    'name' => $jobName,
-                    'total' => 0,
-                    'expert' => 0,
-                    'skilled' => 0,
-                    'specific' => 0,
-                    'subroles' => [],
-                ];
-            }
-
-            $jobGroups[$jobKey]['total']++;
-            $jobGroups[$jobKey][$seniority]++;
-
-            if ($jobName === 'Dokter') {
-                $sourceLower = mb_strtolower($sourceJob);
-                $subrole = str_contains($sourceLower, 'spesialis')
-                    ? 'Dokter Spesialis'
-                    : (str_contains($sourceLower, 'umum') ? 'Dokter Umum' : 'Dokter');
-                $jobGroups[$jobKey]['subroles'][$subrole] = ($jobGroups[$jobKey]['subroles'][$subrole] ?? 0) + 1;
-            }
+        $scopedDashboardData = ['all' => $this->dashboardAggregate($employees)];
+        foreach ($scopeCategories as $scope => $categories) {
+            $scopedEmployees = array_values(array_filter($employees, fn (array $employee): bool => in_array(
+                $this->employmentCategory((string) ($employee['jenis_kepegawaian'] ?? '')),
+                $categories,
+                true,
+            )));
+            $scopedDashboardData[$scope] = $this->dashboardAggregate($scopedEmployees);
         }
-
-        $preferredJobOrder = [
-            'Dokter' => 0,
-            'Perawat' => 1,
-            'Bidan' => 2,
-            'Apoteker' => 3,
-            'Asisten Apoteker' => 4,
-            'Analis SDM Aparatur' => 5,
-            'Pranata Komputer' => 6,
-            'Pengelola Keuangan' => 7,
-            'Petugas Kebersihan' => 8,
-        ];
-        $jobBreakdown = array_values($jobGroups);
-        foreach ($jobBreakdown as &$job) {
-            $job['details'] = [];
-            if ($job['name'] === 'Dokter' && $job['subroles'] !== []) {
-                $subroleOrder = ['Dokter Umum' => 0, 'Dokter Spesialis' => 1, 'Dokter' => 2];
-                uksort($job['subroles'], static fn (string $a, string $b): int => ($subroleOrder[$a] ?? 99) <=> ($subroleOrder[$b] ?? 99));
-                foreach ($job['subroles'] as $label => $count) {
-                    $job['details'][] = ['label' => $label, 'count' => $count];
-                }
-            } else {
-                if ($job['expert'] > 0) {
-                    $job['details'][] = [
-                        'label' => $job['name'] === 'Perawat' ? 'Kategori Ahli (Profesi)' : 'Kategori Ahli',
-                        'count' => $job['expert'],
-                    ];
-                }
-                if ($job['skilled'] > 0) {
-                    $job['details'][] = [
-                        'label' => $job['name'] === 'Perawat' ? 'Kategori Terampil (Vokasi)' : 'Kategori Terampil',
-                        'count' => $job['skilled'],
-                    ];
-                }
-            }
-            unset($job['subroles']);
-        }
-        unset($job);
-        usort($jobBreakdown, static function (array $a, array $b) use ($preferredJobOrder): int {
-            $aOrder = $preferredJobOrder[$a['name']] ?? PHP_INT_MAX;
-            $bOrder = $preferredJobOrder[$b['name']] ?? PHP_INT_MAX;
-
-            return $aOrder === $bOrder ? strcasecmp($a['name'], $b['name']) : $aOrder <=> $bOrder;
-        });
+        $currentDashboardData = $scopedDashboardData[$dashboardScope] ?? $scopedDashboardData['all'];
+        $employmentCounts = $currentDashboardData['employment_counts'];
+        $jobBreakdown = $currentDashboardData['job_breakdown'];
 
         return view('dashboard', [
             'active_menu' => 'dashboard',
             'role' => $this->role(),
-            'employee_count' => count($employees),
+            'employee_count' => $currentDashboardData['employee_count'],
             'selectedUnit' => $selectedUnit,
+            'dashboardScope' => $dashboardScope,
             'unitOptions' => $unitOptions,
             'employmentCounts' => $employmentCounts,
             'jobBreakdown' => $jobBreakdown,
+            'scopedDashboardData' => $scopedDashboardData,
             'can_view_employees' => $canViewEmployees,
         ]);
     }
@@ -295,9 +286,31 @@ class Home extends BaseController
     /** Filters of the employee list, read from the query string (shared by the list and its Excel export). */
     private function listFilters(): array
     {
-        $filters = ['q' => trim((string) $this->request->getGet('q'))];
+        $filters = ['q' => trim((string) $this->request->getGet('q')), 'active_only' => true];
         foreach (array_keys(EmployeeModel::LIST_FILTER_COLUMNS) as $key) {
             $filters[$key] = trim((string) $this->request->getGet($key));
+        }
+        $jobCatalog = new JobTitleModel();
+        if ($filters['filter_ketenagaan'] !== '') {
+            $filters['filter_ketenagaan'] = $jobCatalog->canonicalGroup($filters['filter_ketenagaan']) ?? '';
+        }
+        if ($filters['filter_ketenagaan'] === '' || ($filters['filter_jabatan'] !== '' && ! $jobCatalog->isValidPair($filters['filter_ketenagaan'], $filters['filter_jabatan']))) {
+            $filters['filter_jabatan'] = '';
+        }
+        $statusGroups = array_merge(array_keys(EmployeeModel::EMPLOYMENT_STATUS_GROUPS), ['other']);
+        $filters['filter_status_group'] = in_array($this->request->getGet('filter_status_group'), $statusGroups, true)
+            ? (string) $this->request->getGet('filter_status_group')
+            : '';
+        if ($filters['filter_status_group'] === '' && $filters['filter_status'] !== '') {
+            foreach (EmployeeModel::EMPLOYMENT_STATUS_GROUPS as $group => $statuses) {
+                if (in_array($filters['filter_status'], $statuses, true)) {
+                    $filters['filter_status_group'] = $group;
+                    break;
+                }
+            }
+            if ($filters['filter_status_group'] === '') {
+                $filters['filter_status_group'] = 'other';
+            }
         }
         $filters['filter_jpl'] = in_array($this->request->getGet('filter_jpl'), ['kurang', 'terpenuhi'], true)
             ? (string) $this->request->getGet('filter_jpl')
@@ -448,6 +461,15 @@ class Home extends BaseController
         $filters = $this->listFilters();
 
         $filterOptions = $canView ? $this->employeeModel()->filterOptions($user) : array_fill_keys(array_keys(EmployeeModel::LIST_FILTER_COLUMNS), []);
+        $jobCatalog = new JobTitleModel();
+        $jobOptionsByKetenagaan = $jobCatalog->allGrouped();
+        foreach ($jobOptionsByKetenagaan as &$titles) {
+            sort($titles, SORT_NATURAL | SORT_FLAG_CASE);
+        }
+        unset($titles);
+        uksort($jobOptionsByKetenagaan, 'strnatcasecmp');
+        $ketenagaanOptions = array_keys($jobOptionsByKetenagaan);
+        sort($ketenagaanOptions, SORT_NATURAL | SORT_FLAG_CASE);
         // Pagination: page size from ?per_page (10/25/50/100), page number from ?page.
         $perPageOptions = [10, 25, 50, 100];
         $perPage = (int) $this->request->getGet('per_page');
@@ -455,7 +477,7 @@ class Home extends BaseController
             $perPage = 25;
         }
         $page = max(1, (int) $this->request->getGet('page'));
-        $emptySummary = ['entries' => [], 'summary' => ['total' => 0, 'uploaded' => 0, 'pending' => 0, 'missing' => [], 'complete' => true]];
+        $emptySummary = ['entries' => [], 'summary' => ['total' => 0, 'uploaded' => 0, 'pending' => 0, 'missing' => [], 'revisions' => [], 'complete' => true]];
         $documentModel = new EmployeeDocumentModel();
 
         if (! $canView) {
@@ -485,21 +507,57 @@ class Home extends BaseController
         $list = [];
         foreach ($pageEmployees as $employee) {
             $checklist = $checklists[(int) $employee['id']] ?? $emptySummary;
-            // STR & SIP/SIK due date comes from the uploaded document (only for health workers).
-            $strSip = null;
+            $workforce = trim((string) ($employee['jenis_ketenagaan'] ?? ''));
+            // Use separate STR/SIP entries, while the list keeps one compact combined status.
+            $licenses = ['str' => null, 'sip' => null];
             foreach ($checklist['entries'] as $entry) {
-                if ($entry['item']['id'] === 'str-sip') {
-                    $strSip = ['required' => $entry['required'], 'status' => $entry['status'], 'expires_at' => $entry['row']['expires_at'] ?? null];
+                $licenseKey = match ($entry['item']['id']) {
+                    'str-sip' => 'str',
+                    'sip' => 'sip',
+                    default => null,
+                };
+                if ($licenseKey === null) {
+                    continue;
                 }
+                $dateField = $licenseKey . '_berlaku';
+                $licenses[$licenseKey] = [
+                    'required' => $entry['required'],
+                    'status' => $entry['status'],
+                    'expires_at' => trim((string) ($employee[$dateField] ?? '')) !== ''
+                        ? $employee[$dateField]
+                        : ($entry['row']['expires_at'] ?? null),
+                ];
             }
+            $visibleLicenses = array_values(array_filter(
+                $licenses,
+                static fn ($license): bool => is_array($license) && (! empty($license['required']) || ($license['status'] ?? 'missing') !== 'missing'),
+            ));
+            $expiryDates = array_values(array_filter(array_column($visibleLicenses, 'expires_at')));
+            sort($expiryDates);
+            $hasRequiredMissingLicense = count(array_filter(
+                $visibleLicenses,
+                static fn (array $license): bool => ! empty($license['required']) && ($license['status'] ?? '') === 'missing',
+            )) > 0;
+            $hasExpiredLicense = count(array_filter(
+                $visibleLicenses,
+                static fn (array $license): bool => ($license['status'] ?? '') === 'expired',
+            )) > 0;
+            $hasPendingLicense = count(array_filter(
+                $visibleLicenses,
+                static fn (array $license): bool => ($license['status'] ?? '') === 'pending',
+            )) > 0;
+            $strSip = $visibleLicenses === [] ? null : [
+                'required' => count(array_filter($visibleLicenses, static fn (array $license): bool => ! empty($license['required']))) > 0,
+                'status' => $hasRequiredMissingLicense ? 'missing' : ($hasExpiredLicense ? 'expired' : ($hasPendingLicense ? 'pending' : 'verified')),
+                'expires_at' => $expiryDates[0] ?? null,
+            ];
             $row = [
                 'id' => (int) $employee['id'],
                 'nama' => $employee['nama'],
                 'nip' => $employee['nip'],
                 'bangsal' => $employee['unit_name'] ?? '',
-                'jenis' => $employee['jenis_ketenagaan'] ?: $employee['jenis_kepegawaian'],
+                'jenis' => $workforce !== '' ? ($jobCatalog->canonicalGroup($workforce) ?? $workforce) : $employee['jenis_kepegawaian'],
                 'status_kep' => $employee['jenis_kepegawaian'],
-                'status' => $employee['employee_status'],
                 'jabatan' => $employee['jabatan_nama'],
                 'jenjang' => $employee['jenjang_jabatan'],
                 'jenis_jenjang' => str_contains(strtolower($employee['jenjang_jabatan']), 'ahli') ? 'Ahli' : ($employee['jenjang_jabatan'] !== '' ? 'Terampil' : '-'),
@@ -518,11 +576,16 @@ class Home extends BaseController
             'can_create' => $canCreate,
             'unitOptions' => $filterOptions['filter_bangsal'],
             'statusOptions' => $filterOptions['filter_status'],
-            'ketenagaanOptions' => $filterOptions['filter_ketenagaan'],
-            'statusDataOptions' => $filterOptions['filter_status_data'],
-            'jabatanOptions' => $filterOptions['filter_jabatan'],
+            'statusGroupOptions' => [
+                'asn' => 'ASN',
+                'blud' => 'BLUD',
+                'mitra' => 'Mitra',
+                'other' => 'Lainnya',
+            ],
+            'ketenagaanOptions' => $ketenagaanOptions,
+            'jobOptionsByKetenagaan' => $jobOptionsByKetenagaan,
             'jenjangOptions' => $filterOptions['filter_jenjang'],
-            'has_filter' => array_filter($filters) !== [],
+            'has_filter' => array_filter($filters, static fn ($value, $key): bool => $key !== 'active_only' && $value !== '', ARRAY_FILTER_USE_BOTH) !== [],
             'pagination' => [
                 'page' => $page,
                 'per_page' => $perPage,
@@ -591,14 +654,13 @@ class Home extends BaseController
             $window = 24;
         }
 
-        $retired = [];
+        $bupAges = (new RetirementBupModel())->ages();
         $upcoming = [];
         foreach ($this->employeeModel()->visibleTo($this->user()) as $employee) {
-            if (str_contains(mb_strtolower($employee['employee_status'] . ' ' . $employee['kedudukan']), 'pensiun')) {
-                $retired[] = $employee;
+            if ($this->isInactiveEmployee($employee)) {
                 continue;
             }
-            $info = EmployeeProfileData::retirementInfo($employee);
+            $info = EmployeeProfileData::retirementInfo($employee, null, $bupAges);
             if ($info !== null && $info['months_left'] <= $window) {
                 $upcoming[] = $employee + ['pensiun' => $info];
             }
@@ -608,11 +670,75 @@ class Home extends BaseController
         return view('pensiun', [
             'active_menu' => 'pensiun',
             'role' => $this->role(),
-            'retiredEmployees' => $retired,
             'upcomingEmployees' => $upcoming,
             'windows' => $windows,
             'window' => $window,
             'can_retire' => EmployeeAccess::can('employees.update'),
+        ]);
+    }
+
+    public function pegawaiNonaktif()
+    {
+        if (! EmployeeAccess::can('employees.view')) {
+            return redirect()->to('/');
+        }
+        $categories = [
+            'pensiun' => 'Pensiun',
+            'mutasi-keluar' => 'Mutasi Keluar',
+            'habis-kontrak' => 'Habis Kontrak',
+            'mengundurkan-diri' => 'Mengundurkan Diri',
+        ];
+        $employees = $this->employeeModel()->visibleTo($this->user());
+        $bupSettings = (new RetirementBupModel())->settings();
+        $bupAges = array_map(static fn (array $setting): int => (int) $setting['age'], $bupSettings);
+        $inactiveStatuses = ['Pensiun', ...array_values($categories), 'Nonaktif'];
+        $inactiveEmployees = array_values(array_filter(
+            $employees,
+            fn (array $employee): bool => $this->isInactiveEmployee($employee),
+        ));
+        $letterRows = (new EmployeeDocumentModel())
+            ->whereIn('employee_id', array_map(static fn (array $employee): int => (int) $employee['id'], $inactiveEmployees) ?: [0])
+            ->where('document_key', 'surat-nonaktif')
+            ->findAll();
+        $lettersByEmployee = [];
+        foreach ($letterRows as $letterRow) {
+            $lettersByEmployee[(int) $letterRow['employee_id']] = (int) $letterRow['id'];
+        }
+        foreach ($inactiveEmployees as &$inactiveEmployee) {
+            $inactiveEmployee['surat_id'] = $lettersByEmployee[(int) $inactiveEmployee['id']] ?? null;
+            $inactiveEmployee['status_nonaktif'] = in_array($inactiveEmployee['employee_status'] ?? '', $inactiveStatuses, true)
+                ? $inactiveEmployee['employee_status']
+                : ($inactiveEmployee['kedudukan'] ?? 'Nonaktif');
+        }
+        unset($inactiveEmployee);
+
+        $pensionCandidates = [];
+        foreach ($employees as $employee) {
+            if ($this->isInactiveEmployee($employee)) {
+                continue;
+            }
+            $retirementInfo = EmployeeProfileData::retirementInfo($employee, null, $bupAges);
+            if ($retirementInfo !== null && $retirementInfo['months_left'] <= 24) {
+                $pensionCandidates[] = $employee + ['pensiun' => $retirementInfo];
+            }
+        }
+        usort($pensionCandidates, static fn (array $first, array $second): int => strcmp($first['pensiun']['tmt'], $second['pensiun']['tmt']));
+
+        $eligibleEmployees = array_values(array_filter(
+            $employees,
+            fn (array $employee): bool => ! $this->isInactiveEmployee($employee),
+        ));
+
+        return view('pegawai_nonaktif', [
+            'active_menu' => 'pegawai-nonaktif',
+            'role' => $this->role(),
+            'categories' => $categories,
+            'inactiveEmployees' => $inactiveEmployees,
+            'eligibleEmployees' => $eligibleEmployees,
+            'pensionCandidates' => $pensionCandidates,
+            'bupSettings' => $bupSettings,
+            'can_manage_bup' => ($this->user()['role'] ?? '') === 'superadmin',
+            'can_update' => EmployeeAccess::can('employees.update'),
         ]);
     }
 
@@ -671,6 +797,18 @@ class Home extends BaseController
     public function dokumenPegawai()
     {
         $data = $this->employeePageData('dokumen-pegawai', $this->isPegawai(), 'dokumen-pegawai');
+        return $data['employee_profile'] === null ? redirect()->to('/')->with('error', $data['profile_error']) : view('employee/profile', $data);
+    }
+
+    public function sip()
+    {
+        $data = $this->employeePageData('sip', $this->isPegawai(), 'sip');
+        return $data['employee_profile'] === null ? redirect()->to('/')->with('error', $data['profile_error']) : view('employee/profile', $data);
+    }
+
+    public function str()
+    {
+        $data = $this->employeePageData('str', $this->isPegawai(), 'str');
         return $data['employee_profile'] === null ? redirect()->to('/')->with('error', $data['profile_error']) : view('employee/profile', $data);
     }
 

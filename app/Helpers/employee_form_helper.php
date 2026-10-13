@@ -81,13 +81,36 @@ if (! function_exists('employee_table_columns')) {
 
 if (! function_exists('employee_table_cell')) {
     /** Content of one table cell: inputs (named "$namePrefix[key]") when editable, otherwise values. */
-    function employee_table_cell(array $column, array $record, bool $editable, string $namePrefix): string
+    function employee_table_cell(array $column, array $record, bool $editable, string $namePrefix, string $sectionKey = '', array $jobTitlesByGroup = []): string
     {
         $stacked = count($column['fields']) > 1;
         $html = '';
         foreach ($column['fields'] as $field) {
             $value = $record[$field[0]] ?? '';
             if ($editable) {
+                if ($sectionKey === 'jabatan' && $field[0] === 'jenis_ketenagaan') {
+                    $group = trim((string) $value);
+                    $options = '<option value="">Pilih jenis ketenagaan</option>';
+                    if ($group !== '' && ! array_key_exists($group, $jobTitlesByGroup)) {
+                        $options .= '<option value="' . esc($group) . '" selected>' . esc($group) . ' (data lama)</option>';
+                    }
+                    foreach (array_keys($jobTitlesByGroup) as $groupName) {
+                        $options .= '<option value="' . esc($groupName) . '"' . ($groupName === $group ? ' selected' : '') . '>' . esc($groupName) . '</option>';
+                    }
+                    $select = '<select class="form-control" name="' . esc($namePrefix . '[jenis_ketenagaan]') . '" aria-label="Jenis Ketenagaan" data-job-group-select data-original-job-group="' . esc($group) . '">' . $options . '</select>';
+                    $html .= $stacked ? '<label class="repeat-stack"><small>' . esc($field[1]) . '</small>' . $select . '</label>' : $select;
+                    continue;
+                }
+                if ($sectionKey === 'jabatan' && $field[0] === 'nama_jabatan') {
+                    $jobTitle = trim((string) $value);
+                    $originalTitle = (int) ($record['id'] ?? 0) > 0 ? $jobTitle : '';
+                    $select = '<select class="form-control" name="' . esc($namePrefix . '[nama_jabatan]') . '" aria-label="Nama Jabatan" data-job-title-select data-original-job-title="' . esc($originalTitle) . '">'
+                        . '<option value="">Pilih jenis ketenagaan dahulu</option>'
+                        . ($jobTitle !== '' ? '<option value="' . esc($jobTitle) . '" selected>' . esc($jobTitle) . '</option>' : '')
+                        . '</select>';
+                    $html .= $stacked ? '<label class="repeat-stack"><small>' . esc($field[1]) . '</small>' . $select . '</label>' : $select;
+                    continue;
+                }
                 $input = employee_field_input($field, $namePrefix . '[' . $field[0] . ']', $value, ['aria-label' => $field[1]]);
                 $html .= $stacked ? '<label class="repeat-stack"><small>' . esc($field[1]) . '</small>' . $input . '</label>' : $input;
                 continue;

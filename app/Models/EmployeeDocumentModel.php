@@ -23,6 +23,9 @@ class EmployeeDocumentModel extends Model
         'file_size',
         'is_required',
         'verification_status',
+        'verification_note',
+        'verified_by',
+        'verified_at',
         'expires_at',
         'uploaded_by',
     ];
@@ -145,6 +148,15 @@ class EmployeeDocumentModel extends Model
             foreach (EmployeeProfileData::documentCatalog() as $item) {
                 $requirement = EmployeeProfileData::documentRequirement($item, $employee);
                 $profileRow = $rows[$item['id'] . '#'] ?? null;
+                $expiryField = match ($item['id']) {
+                    'str-sip' => 'str_berlaku',
+                    'sip' => 'sip_berlaku',
+                    default => null,
+                };
+                $profileExpiry = $expiryField === null ? '' : trim((string) ($employee[$expiryField] ?? ''));
+                if ($profileRow !== null && $profileExpiry !== '') {
+                    $profileRow['expires_at'] = $profileExpiry;
+                }
                 if ($requirement === 'tidak_berlaku' && ($profileRow === null || $profileRow['stored_path'] === '')) {
                     continue;
                 }
@@ -169,8 +181,14 @@ class EmployeeDocumentModel extends Model
                     'label' => $item['title'], 'status' => self::entryStatus($profileRow)];
             }
 
-            $summary = ['total' => 0, 'uploaded' => 0, 'verified' => 0, 'pending' => 0, 'missing' => []];
+            $summary = ['total' => 0, 'uploaded' => 0, 'verified' => 0, 'pending' => 0, 'missing' => [], 'revisions' => []];
             foreach ($entries as $entry) {
+                if ($entry['status'] === 'rejected') {
+                    $summary['revisions'][] = [
+                        'title' => $entry['label'],
+                        'note' => trim((string) ($entry['row']['verification_note'] ?? '')),
+                    ];
+                }
                 if (! $entry['required']) {
                     continue;
                 }
@@ -222,6 +240,8 @@ class EmployeeDocumentModel extends Model
                 'file' => $hasFile ? $row['original_name'] : '',
                 'required' => $entry['required'],
                 'verification_status' => $row['verification_status'] ?? 'missing',
+                'verification_note' => $row['verification_note'] ?? null,
+                'verified_at' => $row['verified_at'] ?? null,
                 'status' => $entry['status'],
                 'has_expiry' => ! empty($item['has_expiry']),
                 'expires_at' => $row['expires_at'] ?? null,
@@ -290,6 +310,8 @@ class EmployeeDocumentModel extends Model
             'file' => $hasFile ? $record['original_name'] : '',
             'required' => false,
             'verification_status' => $record['verification_status'],
+            'verification_note' => $record['verification_note'] ?? null,
+            'verified_at' => $record['verified_at'] ?? null,
         ];
         if ($hasFile) {
             $attachment['url'] = base_url('/documents/' . $record['id']);

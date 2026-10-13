@@ -8,6 +8,8 @@ use App\Models\EmployeeDocumentModel;
 use App\Models\EmployeeEducationModel;
 use App\Models\EmployeeHistoryModel;
 use App\Models\EmployeeModel;
+use App\Models\JobTitleModel;
+use App\Models\RetirementBupModel;
 use App\Models\UnitModel;
 use App\Models\UserModel;
 
@@ -37,11 +39,15 @@ class EmployeeController extends BaseController
             'nip' => 'required|min_length[4]|max_length[40]',
             'username' => 'required|min_length[4]|max_length[80]|alpha_numeric_punct',
             'tanggal_lahir' => 'required|valid_date[Y-m-d]',
+            'tanggal_masuk' => 'required|valid_date[Y-m-d]',
             'unit_id' => 'required|is_natural_no_zero',
             'email' => 'permit_empty|valid_email|max_length[190]',
         ];
         if (! $this->validate($rules)) {
             return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+        }
+        if ($jobError = $this->jobSelectionError()) {
+            return redirect()->back()->withInput()->with('error', $jobError);
         }
 
         $user = EmployeeAccess::user();
@@ -93,8 +99,8 @@ class EmployeeController extends BaseController
                 $profileInput[$fieldKey] = $fieldType === 'date' && $value === '' ? null : $value;
             }
         }
-        $profileInput['employee_status'] = $profileInput['employee_status'] ?? 'Aktif';
-        $profileInput['kedudukan'] = $profileInput['kedudukan'] ?? 'Aktif';
+        $profileInput['employee_status'] = 'Aktif';
+        $profileInput['kedudukan'] = 'Aktif';
 
         $db = db_connect();
         $db->transBegin();
@@ -222,6 +228,17 @@ class EmployeeController extends BaseController
                 $normalizedRecords[] = $record;
             }
             $historyModel->saveForEmployee($employeeId, $category, $normalizedRecords);
+            if ($category === 'jabatan') {
+                $positions = $historyModel->forEmployee($employeeId, 'jabatan');
+                $latestPosition = EmployeeProfileData::latestHistoryRow($positions);
+                $currentEmployee = (new EmployeeModel())->find($employeeId);
+                $workforce = trim((string) ($latestPosition['jenis_ketenagaan'] ?? ''));
+                if ($workforce === '' && $latestPosition !== null) {
+                    $workforce = (new JobTitleModel())->canonicalGroup(trim((string) ($latestPosition['nama_jabatan'] ?? '')))
+                        ?? trim((string) ($currentEmployee['jenis_ketenagaan'] ?? ''));
+                }
+                (new EmployeeModel())->update($employeeId, ['jenis_ketenagaan' => $workforce]);
+            }
         }
 
         // Refresh D/E/F from the history tables that were on the page.
@@ -242,6 +259,66 @@ class EmployeeController extends BaseController
     private function visibleEmployee(int $employeeId): ?array
     {
         return (new EmployeeModel())->findVisibleById($employeeId, EmployeeAccess::user());
+    }
+
+    /** Validate newly selected positions while leaving unchanged historical values intact. */
+    private function jobSelectionError(?array $employee = null): ?string
+    {
+        $catalog = new JobTitleModel();
+        $postedSections = array_map('strval', (array) $this->request->getPost('history_sections'));
+        if (! in_array('jabatan', $postedSections, true)) {
+            return $employee === null ? 'Tambahkan minimal satu riwayat jabatan dengan jenis ketenagaan dan nama jabatan.' : null;
+        }
+
+        $existing = [];
+        if ($employee !== null) {
+            foreach ((new EmployeeHistoryModel())->forEmployee((int) $employee['id'], 'jabatan') as $record) {
+                $existing[(int) $record['id']] = $record;
+            }
+        }
+        $postedHistories = (array) $this->request->getPost('histories');
+        $hasValidPosition = false;
+        foreach ((array) ($postedHistories['jabatan'] ?? []) as $record) {
+            if (! is_array($record)) {
+                continue;
+            }
+            $recordId = (int) ($record['id'] ?? 0);
+            $group = is_scalar($record['jenis_ketenagaan'] ?? null) ? trim((string) $record['jenis_ketenagaan']) : '';
+            $title = is_scalar($record['nama_jabatan'] ?? null) ? trim((string) $record['nama_jabatan']) : '';
+            $originalTitle = trim((string) ($existing[$recordId]['nama_jabatan'] ?? ''));
+            $originalGroup = trim((string) ($existing[$recordId]['jenis_ketenagaan'] ?? ''));
+            if ($originalGroup === '' && $originalTitle !== '') {
+                $originalGroup = $catalog->canonicalGroup($originalTitle) ?? trim((string) ($employee['jenis_ketenagaan'] ?? ''));
+            }
+            if ($title === '') {
+                $hasData = false;
+                foreach ($record as $key => $value) {
+                    if ($key !== 'id' && is_scalar($value) && trim((string) $value) !== '') {
+                        $hasData = true;
+                        break;
+                    }
+                }
+                if ($hasData && ! isset($existing[$recordId])) {
+                    return 'Isi jenis ketenagaan dan nama jabatan pada setiap riwayat jabatan baru.';
+                }
+                continue;
+            }
+            if ($catalog->isValidPair($group, $title)) {
+                $hasValidPosition = true;
+                continue;
+            }
+            if ($originalTitle !== '' && $title === $originalTitle && mb_strtolower($group) === mb_strtolower($originalGroup)) {
+                $hasValidPosition = true;
+                continue;
+            }
+            return 'Nama jabatan harus sesuai dengan jenis ketenagaan pada baris jabatan yang sama.';
+        }
+
+        if ($employee === null && ! $hasValidPosition) {
+            return 'Pilih jenis ketenagaan dan nama jabatan pada bagian Riwayat Jabatan.';
+        }
+
+        return null;
     }
 
     public function update(int $employeeId)
@@ -267,6 +344,9 @@ class EmployeeController extends BaseController
         if (! $this->validate($rules)) {
             return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
         }
+        if ($jobError = $this->jobSelectionError($employee)) {
+            return redirect()->back()->withInput()->with('error', $jobError);
+        }
 
         $payload = (array) $this->request->getPost();
         $accountUsername = trim((string) ($payload['account_username'] ?? ''));
@@ -275,7 +355,8 @@ class EmployeeController extends BaseController
             unset($payload['nip'], $payload['nip_lama'], $payload['jenis_kepegawaian'], $payload['employee_status'], $payload['kedudukan']);
         }
         foreach ([
-            'tanggal_lahir', 'cpns_tanggal_nota', 'cpns_tanggal_sk', 'cpns_tmt', 'cpns_tmt_honorer',
+            'tanggal_lahir', 'tanggal_masuk', 'sip_terbit', 'sip_berlaku', 'str_terbit', 'str_berlaku',
+            'cpns_tanggal_nota', 'cpns_tanggal_sk', 'cpns_tmt', 'cpns_tmt_honorer',
             'pns_tanggal_sk', 'pns_tmt', 'pangkat_tanggal', 'pangkat_tmt', 'jabatan_tanggal', 'jabatan_tmt',
             'pendidikan_terakhir_tanggal_ijazah',
         ] as $dateField) {
@@ -391,23 +472,101 @@ class EmployeeController extends BaseController
         if ($employee === null || ! EmployeeAccess::can('employees.update', $employee) || (EmployeeAccess::user()['role'] ?? '') === 'pegawai') {
             return redirect()->to('/pensiun')->with('error', 'Anda tidak memiliki hak untuk menetapkan pensiun pegawai ini.');
         }
-        $info = EmployeeProfileData::retirementInfo($employee);
-        if ($info === null || ! $info['past_due']) {
-            return redirect()->to('/pensiun')->with('error', 'TMT pensiun ' . $employee['nama'] . ' belum tiba.');
+        return redirect()->to('/pegawai-nonaktif')->with('error', 'Untuk menetapkan ' . $employee['nama'] . ' pensiun, gunakan form Data Pegawai Nonaktif dan lampirkan surat resmi.');
+    }
+
+    public function updateRetirementBup()
+    {
+        if ((EmployeeAccess::user()['role'] ?? '') !== 'superadmin') {
+            return redirect()->to('/pegawai-nonaktif')->with('error', 'Hanya Super Admin yang dapat mengubah BUP.');
+        }
+        $model = new RetirementBupModel();
+        if (! $model->saveAges((array) $this->request->getPost('bup'))) {
+            return redirect()->to('/pegawai-nonaktif')->with('error', 'Nilai BUP harus berupa angka antara 50 sampai 70 tahun.');
+        }
+        return redirect()->to('/pegawai-nonaktif')->with('success', 'Pengaturan BUP berhasil diperbarui.');
+    }
+
+    public function nonaktifkan()
+    {
+        $categories = [
+            'Pensiun' => 'pensiun',
+            'Mutasi Keluar' => 'mutasi-keluar',
+            'Habis Kontrak' => 'habis-kontrak',
+            'Mengundurkan Diri' => 'mengundurkan-diri',
+        ];
+        $employeeId = (int) $this->request->getPost('employee_id');
+        $category = trim((string) $this->request->getPost('kategori'));
+        $employee = $this->visibleEmployee($employeeId);
+        $redirectUrl = '/pegawai-nonaktif';
+        if ($employee === null || ! EmployeeAccess::can('employees.update', $employee) || (EmployeeAccess::user()['role'] ?? '') === 'pegawai') {
+            return redirect()->to($redirectUrl)->with('error', 'Anda tidak memiliki hak untuk menonaktifkan pegawai ini.');
+        }
+        if (! isset($categories[$category])) {
+            return redirect()->to($redirectUrl)->with('error', 'Kategori pegawai nonaktif tidak valid.');
         }
 
+        $file = $this->request->getFile('surat');
+        $directory = WRITEPATH . 'uploads' . DIRECTORY_SEPARATOR . 'employee-documents' . DIRECTORY_SEPARATOR . $employeeId;
+        if ($file === null || ! $file->isValid() || $file->getError() !== UPLOAD_ERR_OK
+            || strtolower($file->getExtension()) !== 'pdf' || $file->getMimeType() !== 'application/pdf'
+            || $file->getSizeByUnit('mb') > 10) {
+            return redirect()->to($redirectUrl)->with('error', 'Unggah surat resmi dalam format PDF, maksimal 10 MB.');
+        }
+        if (! is_dir($directory) && ! mkdir($directory, 0750, true) && ! is_dir($directory)) {
+            return redirect()->to($redirectUrl)->with('error', 'Folder penyimpanan surat tidak dapat dibuat.');
+        }
+        $storedName = $file->getRandomName();
+        $file->move($directory, $storedName);
+
+        $documents = new EmployeeDocumentModel();
+        $existing = $documents->where('employee_id', $employeeId)->where('document_key', 'surat-nonaktif')->first();
         $db = db_connect();
         $db->transStart();
-        (new EmployeeModel())->update($employeeId, ['employee_status' => 'Pensiun', 'kedudukan' => 'Pensiun']);
+        $recordData = [
+            'employee_id' => $employeeId,
+            'education_id' => null,
+            'group_key' => 'nonaktif',
+            'document_key' => 'surat-nonaktif',
+            'title' => 'Surat ' . $category,
+            'description' => 'Surat keterangan pegawai nonaktif.',
+            'original_name' => mb_substr(basename($file->getClientName()), 0, 255),
+            'stored_path' => 'employee-documents/' . $employeeId . '/' . $storedName,
+            'mime_type' => 'application/pdf',
+            'file_size' => $file->getSize(),
+            'is_required' => 1,
+            'verification_status' => 'verified',
+            'verification_note' => null,
+            'verified_by' => (int) (EmployeeAccess::user()['id'] ?? 0),
+            'verified_at' => date('Y-m-d H:i:s'),
+            'uploaded_by' => (int) (EmployeeAccess::user()['id'] ?? 0),
+        ];
+        if ($existing === null) {
+            $documents->insert($recordData);
+        } else {
+            $documents->update((int) $existing['id'], $recordData);
+        }
+        (new EmployeeModel())->update($employeeId, [
+            'employee_status' => $category,
+            'kedudukan' => $category,
+        ]);
         if ((int) ($employee['user_id'] ?? 0) > 0) {
             (new UserModel())->update((int) $employee['user_id'], ['status' => 'disabled']);
         }
         $db->transComplete();
+
         if ($db->transStatus() === false) {
-            return redirect()->to('/pensiun')->with('error', 'Status pensiun gagal disimpan.');
+            @unlink($directory . DIRECTORY_SEPARATOR . $storedName);
+            return redirect()->to($redirectUrl)->with('error', 'Status nonaktif dan surat gagal disimpan.');
+        }
+        if ($existing !== null && ! empty($existing['stored_path'])) {
+            $oldPath = WRITEPATH . 'uploads' . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $existing['stored_path']);
+            if (is_file($oldPath)) {
+                @unlink($oldPath);
+            }
         }
 
-        return redirect()->to('/pensiun')->with('success', $employee['nama'] . ' ditetapkan pensiun per ' . date('d-m-Y', strtotime($info['tmt'])) . '; akun login dinonaktifkan.');
+        return redirect()->to($redirectUrl)->with('success', $employee['nama'] . ' dicatat sebagai ' . mb_strtolower($category) . ' dan akun login dinonaktifkan.');
     }
 
     public function uploadDocument(int $employeeId, string $documentKey)
@@ -568,8 +727,20 @@ class EmployeeController extends BaseController
         if (! in_array($status, ['verified', 'rejected'], true)) {
             return redirect()->to('/aktivitas')->with('error', 'Status verifikasi tidak valid.');
         }
-        $documents->update($documentId, ['verification_status' => $status]);
-        return redirect()->to('/aktivitas')->with('success', $status === 'verified' ? 'Dokumen berhasil diverifikasi.' : 'Dokumen ditandai perlu perbaikan.');
+        // A request for correction must say what to fix; the employee sees this note on the document.
+        $note = trim((string) $this->request->getPost('verification_note'));
+        if ($status === 'rejected' && mb_strlen($note) < 5) {
+            return redirect()->to('/aktivitas')->with('error', 'Tulis catatan perbaikan (minimal 5 karakter) agar pegawai tahu apa yang harus diperbaiki.');
+        }
+        $documents->update($documentId, [
+            'verification_status' => $status,
+            'verification_note' => $status === 'rejected' ? mb_substr($note, 0, 1000) : null,
+            'verified_by' => (int) ($user['id'] ?? 0) ?: null,
+            'verified_at' => date('Y-m-d H:i:s'),
+        ]);
+        return redirect()->to('/aktivitas')->with('success', $status === 'verified'
+            ? 'Dokumen ' . $employee['nama'] . ' berhasil diverifikasi.'
+            : 'Dokumen ' . $employee['nama'] . ' ditandai perlu perbaikan; catatan dikirim ke pegawai.');
     }
 
     private function json(array $payload, int $status = 200)

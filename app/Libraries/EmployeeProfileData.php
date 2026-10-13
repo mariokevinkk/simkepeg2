@@ -138,7 +138,8 @@ final class EmployeeProfileData
                 ['id' => 'kewenangan-klinis', 'letter' => 'f', 'title' => 'Kewenangan Klinis', 'description' => 'Wajib untuk tenaga kesehatan.', 'rule' => 'nakes'],
                 ['id' => 'penugasan-klinis', 'letter' => 'g', 'title' => 'Penugasan Klinis / Clinical Appointment', 'description' => 'Wajib untuk tenaga kesehatan.', 'rule' => 'nakes'],
                 ['id' => 'evaluasi-kinerja-klinis', 'letter' => 'h', 'title' => 'Evaluasi Kinerja Klinis', 'description' => 'Wajib untuk tenaga kesehatan.', 'rule' => 'nakes'],
-                ['id' => 'str-sip', 'letter' => 'i', 'title' => 'STR & SIP / SIK', 'description' => 'Wajib untuk tenaga kesehatan. Isi tanggal jatuh tempo masa berlaku.', 'rule' => 'nakes', 'has_expiry' => true],
+                ['id' => 'str-sip', 'section' => 'STR', 'letter' => 'STR', 'title' => 'Surat Tanda Registrasi (STR)', 'description' => 'Unggah dokumen STR di halaman STR. Jika sebelumnya memakai berkas gabungan, unggah ulang STR dan SIP secara terpisah.', 'rule' => 'nakes'],
+                ['id' => 'sip', 'section' => 'SIP', 'letter' => 'SIP', 'title' => 'Surat Izin Praktik (SIP)', 'description' => 'Unggah dokumen SIP pada halaman SIP.', 'rule' => 'nakes'],
                 ['id' => 'sertifikat-kompetensi', 'letter' => 'j', 'title' => 'Sertifikat Kompetensi', 'description' => 'Sertifikat diklat/kompetensi.', 'rule' => 'all'],
                 ['id' => 'sertifikat-pelatihan', 'letter' => 'k', 'title' => 'Sertifikat Pelatihan', 'description' => 'Sertifikat diklat/pelatihan (JPL).', 'rule' => 'all'],
                 ['id' => 'skp', 'letter' => 'l', 'title' => 'Penilaian Kinerja (SKP)', 'description' => 'Wajib untuk PNS, CPNS, PPPK, BLUD Tetap, dan BLUD Kontrak.', 'rule' => 'skp'],
@@ -239,34 +240,49 @@ final class EmployeeProfileData
     }
 
     /**
-     * Batas usia pensiun (BUP) ASN: 65 untuk jabatan fungsional ahli utama, 60 untuk ahli madya
-     * dan pimpinan tinggi, 58 untuk lainnya. Pegawai non-ASN mengikuti 58 tahun.
+     * Resolve BUP by functional level, with optional persisted Super Admin settings.
      */
-    public static function retirementAge(array $employee): int
+    public static function retirementAge(array $employee, ?array $bupAges = null): int
     {
         $job = mb_strtolower(($employee['jabatan_nama'] ?? '') . ' ' . ($employee['jenjang_jabatan'] ?? ''));
-        if (str_contains($job, 'ahli utama')) {
-            return 65;
+        $levelKey = match (true) {
+            str_contains($job, 'utama') => 'ahli_utama',
+            str_contains($job, 'madya'), str_contains($job, 'pimpinan tinggi'), str_contains($job, 'direktur') => 'ahli_madya',
+            str_contains($job, 'muda') => 'ahli_muda',
+            str_contains($job, 'pertama') => 'ahli_pertama',
+            str_contains($job, 'penyelia') => 'keterampilan_penyelia',
+            str_contains($job, 'mahir') => 'keterampilan_mahir',
+            str_contains($job, 'terampil') => 'keterampilan_terampil',
+            default => null,
+        };
+        if ($levelKey === null) {
+            return 58;
         }
-        if (str_contains($job, 'ahli madya') || str_contains($job, 'pimpinan tinggi') || str_contains($job, 'direktur')) {
-            return 60;
-        }
+        $defaults = [
+            'ahli_utama' => 65,
+            'ahli_madya' => 60,
+            'ahli_muda' => 58,
+            'ahli_pertama' => 58,
+            'keterampilan_penyelia' => 58,
+            'keterampilan_mahir' => 58,
+            'keterampilan_terampil' => 58,
+        ];
 
-        return 58;
+        return (int) ($bupAges[$levelKey] ?? $defaults[$levelKey]);
     }
 
     /**
      * Retirement figures for one employee, or null without a valid birth date:
      * the BUP, the date it is reached, and the TMT pensiun (first day of the following month).
      */
-    public static function retirementInfo(array $employee, ?\DateTimeImmutable $today = null): ?array
+    public static function retirementInfo(array $employee, ?\DateTimeImmutable $today = null, ?array $bupAges = null): ?array
     {
         $birth = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) ($employee['tanggal_lahir'] ?? ''));
         if ($birth === false) {
             return null;
         }
         $today ??= new \DateTimeImmutable('today');
-        $age = self::retirementAge($employee);
+        $age = self::retirementAge($employee, $bupAges);
         $reached = $birth->modify('+' . $age . ' years');
         $tmt = $reached->modify('first day of next month');
         $months = ((int) $tmt->format('Y') - (int) $today->format('Y')) * 12 + (int) $tmt->format('n') - (int) $today->format('n');
@@ -283,7 +299,7 @@ final class EmployeeProfileData
 
     /**
      * The employee form split into pages (sidebar menu for pegawai, tabs for admins).
-     * `sections` are form letters; DOKUMEN is the document checklist card.
+     * `sections` are form letters or standalone profile sections; DOKUMEN is the checklist card.
      */
     public static function profilePages(): array
     {
@@ -294,7 +310,34 @@ final class EmployeeProfileData
             'riwayat-pendidikan' => ['title' => 'Pendidikan & Pelatihan', 'icon' => 'fa-graduation-cap', 'sections' => ['F', 'J']],
             'data-keluarga' => ['title' => 'Data Keluarga', 'icon' => 'fa-users', 'sections' => ['T', 'U', 'V', 'W', 'X']],
             'data-lainnya' => ['title' => 'Lainnya', 'icon' => 'fa-ellipsis', 'sections' => ['K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S']],
+            'str' => ['title' => 'STR', 'icon' => 'fa-id-card', 'sections' => ['STR']],
+            'sip' => ['title' => 'SIP', 'icon' => 'fa-file-medical', 'sections' => ['SIP']],
             'dokumen-pegawai' => ['title' => 'Dokumen', 'icon' => 'fa-folder-open', 'sections' => ['DOKUMEN']],
+        ];
+    }
+
+    /** Standalone professional credential pages, backed by existing employees columns. */
+    public static function professionalLicenseSections(): array
+    {
+        return [
+            'sip' => [
+                'section' => 'SIP',
+                'title' => 'SURAT IZIN PRAKTIK (SIP)',
+                'fields' => [
+                    ['sip_nomor', 'Nomor SIP'],
+                    ['sip_terbit', 'Tanggal Mulai Berlaku SIP', 'date'],
+                    ['sip_berlaku', 'Tanggal Selesai Berlaku SIP', 'date'],
+                ],
+            ],
+            'str' => [
+                'section' => 'STR',
+                'title' => 'SURAT TANDA REGISTRASI (STR)',
+                'fields' => [
+                    ['str_nomor', 'Nomor STR'],
+                    ['str_terbit', 'Tanggal Mulai Berlaku STR', 'date'],
+                    ['str_berlaku', 'Tanggal Selesai Berlaku STR', 'date'],
+                ],
+            ],
         ];
     }
 
@@ -305,7 +348,7 @@ final class EmployeeProfileData
             [
                 'letter' => 'A', 'title' => 'IDENTITAS PEGAWAI', 'fields' => [
                     ['nip_lama', 'NIP Lama', 'numeric', 20], ['nip', 'NIP Baru', 'numeric', 40], ['nama', 'Nama Pegawai'],
-                    ['tempat_lahir', 'Tempat Lahir'], ['tanggal_lahir', 'Tanggal Lahir', 'date'],
+                    ['tempat_lahir', 'Tempat Lahir'], ['tanggal_lahir', 'Tanggal Lahir', 'date'], ['tanggal_masuk', 'Tanggal Masuk', 'date'],
                     ['jenis_kelamin', 'Jenis Kelamin', 'select', 'jenis_kelamin'], ['agama', 'Agama', 'select', 'agama'],
                     ['employee_status', 'Status Pegawai', 'select', 'status_pegawai'],
                     ['jenis_kepegawaian', 'Jenis Kepegawaian'], ['status_perkawinan', 'Status Perkawinan', 'select', 'status_perkawinan'],
@@ -471,7 +514,9 @@ final class EmployeeProfileData
                 ['tmt', 'TMT', 'date'], ['tanggal_sk', 'Tgl SK', 'date'], ['nomor_sk', 'No SK'],
                 ['masa_kerja', 'Masa Kerja'], ['jumlah_kredit', 'Jumlah Kredit', 'number'],
             ]],
-            'jabatan' => ['letter' => 'H', 'title' => 'RIWAYAT JABATAN', 'fields' => $positionFields],
+            'jabatan' => ['letter' => 'H', 'title' => 'RIWAYAT JABATAN', 'fields' => array_merge([
+                ['jenis_ketenagaan', 'Jenis Ketenagaan', 'select', 'jenis_ketenagaan'],
+            ], $positionFields)],
             'tugas_tambahan' => ['letter' => 'I', 'title' => 'RIWAYAT TUGAS TAMBAHAN', 'fields' => $positionFields],
             'tanda_jasa' => ['letter' => 'K', 'title' => 'TANDA JASA / SATYA LENCANA', 'fields' => [
                 ['nama_tanda_jasa_satya_lencana', 'Nama Tanda Jasa / Satya Lencana'],

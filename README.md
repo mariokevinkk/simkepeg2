@@ -1,115 +1,125 @@
-# CodeIgniter 4 Application Starter
+# SIM Kepegawaian RSUD Kota Yogyakarta
 
-## What is CodeIgniter?
+Aplikasi web untuk mengelola data kepegawaian, dokumen, dan informasi status pegawai berdasarkan unit kerja. Aplikasi dibangun dengan CodeIgniter 4 dan menggunakan MySQL/MariaDB.
 
-CodeIgniter is a PHP full-stack web framework that is light, fast, flexible and secure.
-More information can be found at the [official site](https://codeigniter.com).
+## Fitur
 
-This repository holds a composer-installable app starter.
-It has been built from the
-[development repository](https://github.com/codeigniter4/CodeIgniter4).
+- Dashboard dan laporan kepegawaian sesuai cakupan unit akun.
+- Data pegawai, profil, pendidikan, riwayat jabatan dan kepangkatan, keluarga, serta data pendukung lainnya.
+- Pencarian dan filter data pegawai, termasuk kelengkapan dokumen.
+- Ekspor daftar pegawai ke Excel dan formulir data pegawai ke Word.
+- Checklist dokumen wajib dan tambahan, unggah dokumen, serta verifikasi atau permintaan perbaikan dengan catatan.
+- Pengelolaan akun, unit kerja, katalog jabatan, dan hak akses admin unit.
+- Pemantauan pensiun berdasarkan Batas Usia Pensiun (BUP), pengaturan BUP, dan pencatatan pegawai nonaktif.
+- Registrasi akun pegawai yang menunggu persetujuan administrator.
 
-More information about the plans for version 4 can be found in [CodeIgniter 4](https://forum.codeigniter.com/forumdisplay.php?fid=28) on the forums.
+## Peran akun
 
-You can read the [user guide](https://codeigniter.com/user_guide/)
-corresponding to the latest version of the framework.
+- **Super Admin** mengelola seluruh unit, akun, katalog jabatan, pengaturan BUP, dan data aplikasi.
+- **Admin Unit** hanya mengakses unit yang ditugaskan kepadanya. Super Admin dapat mengatur izin melihat, menambah, dan mengubah data pegawai, mengelola dokumen dan riwayat, serta melihat laporan.
+- **Pegawai** menggunakan akun yang ditautkan ke data pegawainya untuk mengakses profil dan fitur pegawai yang tersedia.
 
-## Installation & updates
+## Teknologi dan kebutuhan
 
-`composer create-project codeigniter4/appstarter` then `composer update` whenever
-there is a new release of the framework.
+- PHP 8.2 atau lebih baru.
+- Composer.
+- MySQL atau MariaDB dengan ekstensi PHP `mysqli`.
+- Ekstensi PHP `intl`, `mbstring`, dan `fileinfo`.
+- `public/` sebagai document root web server.
+- Hak tulis untuk folder `writable/`.
 
-When updating, check the release notes to see if there are any changes you might need to apply
-to your `app` folder. The affected files can be copied or merged from
-`vendor/codeigniter4/framework/app`.
+## Menjalankan secara lokal
 
-## Setup
+1. Pasang dependency PHP:
 
-Copy `env` to `.env` and tailor for your app, specifically the baseURL
-and any database settings.
+   ```bash
+   composer install
+   ```
 
-### Menyiapkan SIM Kepegawaian
+2. Salin file `env` menjadi `.env`. Di PowerShell:
 
-Untuk MySQL Laragon dengan konfigurasi bawaan, buat database `simkepeg2` melalui
-phpMyAdmin atau HeidiSQL, lalu gunakan pengaturan `.env` berikut. Jika nama
-database atau kredensial MySQL berbeda, sesuaikan nilainya:
+   ```powershell
+   Copy-Item env .env
+   ```
 
-```ini
-database.default.hostname = 127.0.0.1
-database.default.database = simkepeg2
-database.default.username = root
-database.default.password =
-database.default.port = 3306
+3. Buat database MySQL, misalnya `simkepeg2`, lalu isi pengaturan aplikasi dan database di `.env`:
+
+   ```ini
+   CI_ENVIRONMENT = development
+   app.baseURL = 'http://localhost:8080/'
+
+   database.default.hostname = 127.0.0.1
+   database.default.database = simkepeg2
+   database.default.username = root
+   database.default.password =
+   database.default.DBDriver = MySQLi
+   database.default.port = 3306
+   ```
+
+   Sesuaikan nama database, username, dan password dengan konfigurasi MySQL lokal Anda.
+
+4. Buat kunci enkripsi dan jalankan migrasi database:
+
+   ```bash
+   php spark key:generate
+   php spark migrate
+   ```
+
+5. Pilih seed data awal sesuai kebutuhan.
+
+   Untuk instalasi pengembangan/demo, jalankan:
+
+   ```bash
+   php spark db:seed DatabaseSeeder
+   ```
+
+   Seeder ini menjalankan `InitialSeeder`, `JobTitleSeeder`, dan `EmployeeDummySeeder`. Hasilnya mencakup unit awal, katalog jabatan, akun Super Admin, dan data pegawai contoh.
+
+   Jika tidak memerlukan data pegawai dummy, jalankan seed secara terpisah:
+
+   ```bash
+   php spark db:seed InitialSeeder
+   php spark db:seed JobTitleSeeder
+   ```
+
+6. Jalankan server pengembangan:
+
+   ```bash
+   php spark serve
+   ```
+
+   Buka `http://localhost:8080/login`.
+
+### Akun awal dan data demo
+
+- Saat `InitialSeeder` membuat akun Super Admin baru, username (biasanya `superadmin`, atau memakai akhiran angka jika nama itu sudah terpakai) dan password acak ditampilkan di terminal. Simpan password tersebut saat pertama kali dibuat; password tidak dapat dibaca kembali dari database. Jika akun Super Admin sudah ada, seeder tidak mengganti akun atau passwordnya.
+- Akun pegawai contoh menggunakan NIP sebagai username dan tanggal lahir berformat `ddmmyyyy` sebagai password awal.
+- `EmployeeDummySeeder` membuat data fiktif untuk demo/pengembangan. Hindari menjalankan `DatabaseSeeder` pada database produksi yang berisi data nyata.
+- Pegawai yang mendaftar melalui halaman `/register` berstatus menunggu persetujuan. Super Admin meninjau akun tersebut melalui menu **Manajemen Akun**.
+- Akun pegawai yang dibuat dari menu **Data Pegawai** langsung ditautkan ke data pegawai. Username ditentukan saat pengisian, sedangkan password awal memakai tanggal lahir berformat `ddmmyyyy`; pegawai dapat menggantinya melalui menu **Ubah Password**.
+
+## Dokumen pegawai
+
+Lampiran disimpan di `writable/uploads/employee-documents/`, bukan di folder publik. Aplikasi menerima PDF, JPG, dan PNG dengan ukuran maksimal 10 MB per file. Folder `writable/` harus dapat ditulis oleh PHP.
+
+Cadangkan database dan folder `writable/uploads/` secara berkala karena keduanya menyimpan data yang diperlukan aplikasi.
+
+## Deploy ke hosting
+
+Atur document root domain ke folder `public/`. Jangan menjadikan root project sebagai document root. Siapkan `.env` produksi sendiri dan pastikan folder `writable/` dapat ditulis oleh PHP.
+
+Panduan hosting cPanel, konfigurasi HTTPS, migrasi, database, dan backup tersedia di [PANDUAN-HOSTING.md](PANDUAN-HOSTING.md). Contoh konfigurasi produksi tersedia di [env.production.example](env.production.example); salin ke `.env` di server lalu isi seluruh nilai sesuai hosting. Jangan unggah atau commit `.env` yang berisi kredensial.
+
+## Struktur direktori utama
+
+```text
+app/
+  Controllers/       Alur halaman dan aksi aplikasi
+  Database/          Migrasi dan seeder
+  Models/            Akses dan aturan data
+  Views/             Tampilan aplikasi
+  Templates/         Template ekspor dokumen
+public/              Document root dan aset publik
+writable/            Cache, log, sesi, dan unggahan dokumen
+tests/               Pengujian otomatis
 ```
-
-Lalu buat tabel dan akun awal:
-
-```bash
-php spark migrate
-php spark db:seed DatabaseSeeder
-```
-
-Seeder membuat daftar unit awal, satu akun Super Admin, dan lima pegawai dummy
-di setiap unit aktif. Jika hanya ingin menambah pegawai contoh setelah setup awal,
-jalankan `php spark db:seed EmployeeDummySeeder`. Seeder pegawai aman dijalankan
-ulang, memakai NIP berawalan `DUMMY`, dan menautkan setiap pegawai dummy ke akun
-login. Username pegawai dummy adalah NIP, sedangkan password awal memakai tanggal
-lahir berformat `ddmmyyyy`.
-Password awal Super Admin acak
-ditampilkan satu kali di terminal saat seeder berjalan; simpan password tersebut.
-Pegawai asli dapat mendaftar melalui `/register`
-dan menunggu persetujuan Super Admin, atau dibuat dari menu Data Pegawai.
-Pegawai yang dibuat lewat menu Data Pegawai langsung mendapat akun login aktif;
-Super Admin mengisi username dan tanggal lahir, lalu password awalnya adalah
-tanggal lahir berformat `ddmmyyyy`. Jika email kosong, pegawai login memakai
-username atau NIP. Password dapat diganti melalui menu **Ubah Password**.
-Untuk data lama tanpa akun login, buka **Edit Data Pegawai**, isi username dan
-tanggal lahir, lalu simpan untuk membuat serta menautkan akun.
-
-Super Admin membuat admin unit dari menu **Manajemen Admin**, memilih satu atau
-lebih unit, lalu memberi hak seperti melihat, membuat, atau mengubah data pegawai,
-mengelola dokumen, dan melihat laporan. Cakupan unit diterapkan saat daftar dan
-detail pegawai dimuat.
-
-File lampiran disimpan di `writable/uploads/employee-documents`; folder ini ikut
-perlu dicadangkan bersama database.
-
-## Important Change with index.php
-
-`index.php` is no longer in the root of the project! It has been moved inside the *public* folder,
-for better security and separation of components.
-
-This means that you should configure your web server to "point" to your project's *public* folder, and
-not to the project root. A better practice would be to configure a virtual host to point there. A poor practice would be to point your web server to the project root and expect to enter *public/...*, as the rest of your logic and the
-framework are exposed.
-
-**Please** read the user guide for a better explanation of how CI4 works!
-
-## Repository Management
-
-We use GitHub issues, in our main repository, to track **BUGS** and to track approved **DEVELOPMENT** work packages.
-We use our [forum](http://forum.codeigniter.com) to provide SUPPORT and to discuss
-FEATURE REQUESTS.
-
-This repository is a "distribution" one, built by our release preparation script.
-Problems with it can be raised on our forum, or as issues in the main repository.
-
-## Server Requirements
-
-PHP version 8.2 or higher is required, with the following extensions installed:
-
-- [intl](http://php.net/manual/en/intl.requirements.php)
-- [mbstring](http://php.net/manual/en/mbstring.installation.php)
-
-> [!WARNING]
-> - The end of life date for PHP 7.4 was November 28, 2022.
-> - The end of life date for PHP 8.0 was November 26, 2023.
-> - The end of life date for PHP 8.1 was December 31, 2025.
-> - If you are still using below PHP 8.2, you should upgrade immediately.
-> - The end of life date for PHP 8.2 will be December 31, 2026.
-
-Additionally, make sure that the following extensions are enabled in your PHP:
-
-- json (enabled by default - don't turn it off)
-- [mysqlnd](http://php.net/manual/en/mysqlnd.install.php) if you plan to use MySQL
-- [libcurl](http://php.net/manual/en/curl.requirements.php) if you plan to use the HTTP\CURLRequest library

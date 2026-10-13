@@ -54,9 +54,11 @@ class EmployeeDummySeeder extends Seeder
                     $sequence = $index + 1;
                     $nip = sprintf('DUMMY-%04d-%02d', $unitId, $sequence);
                     $employee = $employeeModel->where('nip', $nip)->first();
-                    $job = $jobs[$index];
+                    $position = $jobs[$index];
+                    $job = $position['title'];
+                    $workforce = $position['group'];
                     $employmentType = $this->employmentTypeFor($unitId, $index);
-                    $seniorityLevel = $this->seniorityLevelFor($job, $unitId, $index);
+                    $seniorityLevel = $this->seniorityLevelFor($job);
                     $birthDate = $this->birthDate($unitId, $index);
                     $email = sprintf('pegawai.dummy.%04d.%02d@example.test', $unitId, $sequence);
 
@@ -79,7 +81,7 @@ class EmployeeDummySeeder extends Seeder
                             'kecamatan' => 'Umbulharjo',
                             'kabupaten' => 'Kota Yogyakarta',
                             'provinsi' => 'DI Yogyakarta',
-                            'jenis_ketenagaan' => mb_strtoupper($job),
+                            'jenis_ketenagaan' => $workforce,
                             'jabatan_nama' => $job,
                             'jenjang_jabatan' => $seniorityLevel,
                             'unit_kerja' => $unitName,
@@ -95,13 +97,13 @@ class EmployeeDummySeeder extends Seeder
                         if (
                             ($employee['jenis_kepegawaian'] ?? '') !== $employmentType
                             || ($employee['jenjang_jabatan'] ?? '') !== $seniorityLevel
-                            || ($employee['jenis_ketenagaan'] ?? '') !== mb_strtoupper($job)
+                            || ($employee['jenis_ketenagaan'] ?? '') !== $workforce
                             || ($employee['jabatan_nama'] ?? '') !== $job
                         ) {
                             $employeeModel->update($employeeId, [
                                 'jenis_kepegawaian' => $employmentType,
                                 'jenjang_jabatan' => $seniorityLevel,
-                                'jenis_ketenagaan' => mb_strtoupper($job),
+                                'jenis_ketenagaan' => $workforce,
                                 'jabatan_nama' => $job,
                             ]);
                             $refreshed++;
@@ -301,7 +303,7 @@ class EmployeeDummySeeder extends Seeder
 
         $sections = [
             'jabatan' => [
-                ['nama_jabatan' => 'Pelaksana', 'sub_unit_kerja' => $unitName . ', RSUD Kota Yogyakarta', 'jenis_perubahan_jabatan' => $isAsn ? 'Pengangkatan CPNS' : 'Pengangkatan Pegawai', 'eselon' => '-', 'pangkat_gol_ruang' => $isAsn ? 'Penata Muda, III/a' : '', 'jumlah_kredit' => '', 'nomor_sk' => '550/Pem.D/BP/D.2', 'tanggal_sk' => '2020-12-28', 'pejabat_pengesah' => 'Wali Kota Yogyakarta', 'tmt' => '2020-12-01', 'tanggal_pelantikan' => null],
+                ['nama_jabatan' => 'Struktural', 'sub_unit_kerja' => $unitName . ', RSUD Kota Yogyakarta', 'jenis_perubahan_jabatan' => $isAsn ? 'Pengangkatan CPNS' : 'Pengangkatan Pegawai', 'eselon' => '-', 'pangkat_gol_ruang' => $isAsn ? 'Penata Muda, III/a' : '', 'jumlah_kredit' => '', 'nomor_sk' => '550/Pem.D/BP/D.2', 'tanggal_sk' => '2020-12-28', 'pejabat_pengesah' => 'Wali Kota Yogyakarta', 'tmt' => '2020-12-01', 'tanggal_pelantikan' => null],
                 ['nama_jabatan' => $job, 'sub_unit_kerja' => $unitName . ', RSUD Kota Yogyakarta', 'jenis_perubahan_jabatan' => 'Pengangkatan Jabatan Fungsional', 'eselon' => '-', 'pangkat_gol_ruang' => $isAsn ? 'Penata Muda, III/a' : '', 'jumlah_kredit' => (string) (50 + $index * 10), 'nomor_sk' => '101/Pem.D/BP/D.4/XII/2023', 'tanggal_sk' => '2023-12-27', 'pejabat_pengesah' => 'Wali Kota Yogyakarta', 'tmt' => '2024-01-01', 'tanggal_pelantikan' => '2024-01-19'],
             ],
             'orang_tua' => [
@@ -390,7 +392,7 @@ class EmployeeDummySeeder extends Seeder
                 'mime_type' => 'application/pdf',
                 'file_size' => filesize($directory . DIRECTORY_SEPARATOR . $storedName),
                 'verification_status' => $index === 1 ? 'pending' : 'verified',
-                'expires_at' => $key === 'str-sip' ? ($index === 3 ? '2026-01-15' : '2028-06-30') : null,
+                'expires_at' => in_array($key, ['str-sip', 'sip'], true) ? ($index === 3 ? '2026-01-15' : '2028-06-30') : null,
             ]);
         }
     }
@@ -444,14 +446,12 @@ class EmployeeDummySeeder extends Seeder
         return $types[$typeIndex];
     }
 
-    private function seniorityLevelFor(string $job, int $unitId, int $index): string
+    private function seniorityLevelFor(string $job): string
     {
-        $job = mb_strtolower($job);
-        if (str_contains($job, 'spesialis')) {
-            return 'Ahli Madya';
-        }
-        if (str_contains($job, 'perawat') || str_contains($job, 'bidan')) {
-            return ($unitId + $index) % 3 === 0 ? 'Ahli Pertama' : 'Terampil';
+        foreach (['Ahli Utama', 'Ahli Madya', 'Ahli Muda', 'Ahli Pertama', 'Penyelia', 'Mahir', 'Terampil'] as $level) {
+            if (str_ends_with(mb_strtolower($job), mb_strtolower($level))) {
+                return $level;
+            }
         }
 
         return '';
@@ -461,19 +461,49 @@ class EmployeeDummySeeder extends Seeder
     {
         $unitName = mb_strtolower($unitName);
         if (str_contains($unitName, 'farmasi')) {
-            return ['Apoteker', 'Tenaga Teknis Kefarmasian', 'Asisten Apoteker', 'Administrasi Farmasi', 'Tenaga Teknis Kefarmasian'];
+            return [
+                ['group' => 'Apoteker', 'title' => 'Apoteker Ahli Pertama'],
+                ['group' => 'Asisten Apoteker', 'title' => 'Asisten Apoteker Terampil'],
+                ['group' => 'Apoteker', 'title' => 'Apoteker Ahli Muda'],
+                ['group' => 'Asisten Apoteker', 'title' => 'Asisten Apoteker Mahir'],
+                ['group' => 'Tenaga Umum Non Kesehatan', 'title' => 'Pengadministrasi Perkantoran'],
+            ];
         }
         if (str_contains($unitName, 'icu')) {
-            return ['Dokter Spesialis', 'Perawat ICU', 'Perawat ICU', 'Administrasi', 'Perawat ICU'];
+            return [
+                ['group' => 'Dokter', 'title' => 'Dokter Ahli Madya'],
+                ['group' => 'Perawat', 'title' => 'Perawat Ahli Muda'],
+                ['group' => 'Perawat', 'title' => 'Perawat Terampil'],
+                ['group' => 'Perawat', 'title' => 'Perawat Penyelia'],
+                ['group' => 'Perawat', 'title' => 'Perawat Ahli Pertama'],
+            ];
         }
         if (str_contains($unitName, 'igd')) {
-            return ['Dokter Umum', 'Perawat IGD', 'Bidan', 'Administrasi', 'Perawat IGD'];
+            return [
+                ['group' => 'Dokter', 'title' => 'Dokter Ahli Pertama'],
+                ['group' => 'Perawat', 'title' => 'Perawat Terampil'],
+                ['group' => 'Bidan', 'title' => 'Bidan Terampil'],
+                ['group' => 'Perawat', 'title' => 'Perawat Ahli Muda'],
+                ['group' => 'Bidan', 'title' => 'Bidan Ahli Pertama'],
+            ];
         }
         if (str_contains($unitName, 'poli')) {
-            return ['Dokter Umum', 'Perawat', 'Bidan', 'Perekam Medis', 'Administrasi'];
+            return [
+                ['group' => 'Dokter', 'title' => 'Dokter Ahli Muda'],
+                ['group' => 'Perawat', 'title' => 'Perawat Ahli Pertama'],
+                ['group' => 'Bidan', 'title' => 'Bidan Ahli Muda'],
+                ['group' => 'Perekam Medis', 'title' => 'Perekam Medis Terampil'],
+                ['group' => 'Dokter Gigi', 'title' => 'Dokter Gigi Ahli Pertama'],
+            ];
         }
 
-        return ['Perawat', 'Bidan', 'Dokter Umum', 'Administrasi', 'Perawat'];
+        return [
+            ['group' => 'Perawat', 'title' => 'Perawat Terampil'],
+            ['group' => 'Bidan', 'title' => 'Bidan Terampil'],
+            ['group' => 'Dokter', 'title' => 'Dokter Ahli Pertama'],
+            ['group' => 'Tenaga Umum Non Kesehatan', 'title' => 'Operator Layanan Operasional'],
+            ['group' => 'Perawat', 'title' => 'Perawat Ahli Muda'],
+        ];
     }
 
     private function educationForJob(string $job): array

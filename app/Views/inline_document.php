@@ -410,6 +410,9 @@ if (! defined('INLINE_DOCUMENT_COMPONENT_ASSETS')) {
             <?php endif; ?>
         <?php endif; ?>
         <?php if ($attachmentUrl !== '' && $verificationLabel !== ''): ?><span class="inline-document-state <?= $verificationStatus === 'verified' ? 'is-saved' : ($verificationStatus === 'rejected' ? 'is-error' : 'is-pending') ?>"><?= esc($verificationLabel) ?></span><?php endif; ?>
+        <?php if ($verificationStatus === 'rejected' && trim((string) ($attachment['verification_note'] ?? '')) !== ''): ?>
+            <span class="inline-document-state is-error"><strong>Catatan perbaikan:</strong> <?= nl2br(esc($attachment['verification_note'])) ?></span>
+        <?php endif; ?>
     </div>
     <div class="inline-document-actions">
         <?php if ($attachmentRequired): ?><span class="inline-document-badge">Wajib</span><?php endif; ?>

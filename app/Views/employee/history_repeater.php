@@ -39,7 +39,7 @@ $fileNote = 'Simpan data anak ini terlebih dahulu untuk menambahkan file.';
                             <?php if ($editable): ?><input type="hidden" name="histories[<?= esc($sectionKey) ?>][<?= $index ?>][id]" value="<?= (int) ($record['id'] ?? 0) ?>"><?php endif; ?>
                         </td>
                         <?php foreach ($columns as $column): ?>
-                            <td><?= employee_table_cell($column, $record, $editable, 'histories[' . $sectionKey . '][' . $index . ']') ?></td>
+                            <td><?= employee_table_cell($column, $record, $editable, 'histories[' . $sectionKey . '][' . $index . ']', $sectionKey, $job_titles_by_group ?? []) ?></td>
                         <?php endforeach; ?>
                         <?php if ($hasFileColumn): ?>
                             <td class="repeat-file">
@@ -63,7 +63,7 @@ $fileNote = 'Simpan data anak ini terlebih dahulu untuk menambahkan file.';
             <tr class="history-entry">
                 <td class="repeat-no">Baru<input type="hidden" name="histories[<?= esc($sectionKey) ?>][__INDEX__][id]" value="0"></td>
                 <?php foreach ($columns as $column): ?>
-                    <td><?= employee_table_cell($column, [], true, 'histories[' . $sectionKey . '][__INDEX__]') ?></td>
+                    <td><?= employee_table_cell($column, [], true, 'histories[' . $sectionKey . '][__INDEX__]', $sectionKey, $job_titles_by_group ?? []) ?></td>
                 <?php endforeach; ?>
                 <?php if ($hasFileColumn): ?><td class="repeat-file"><span class="repeat-note"><?= esc($fileNote) ?></span></td><?php endif; ?>
                 <td class="repeat-action"><button class="btn btn-outline btn-sm" type="button" data-remove-history title="Hapus baris"><i class="fa-solid fa-trash"></i> Hapus</button></td>

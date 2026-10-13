@@ -12,7 +12,7 @@ class EmployeeModel extends Model
     protected $returnType = 'array';
     protected $allowedFields = [
         'unit_id', 'user_id', 'nip', 'nip_lama', 'nik', 'gelar_depan', 'gelar_belakang',
-        'nama', 'tempat_lahir', 'tanggal_lahir', 'email', 'jenis_kelamin', 'agama',
+        'nama', 'tempat_lahir', 'tanggal_lahir', 'tanggal_masuk', 'email', 'jenis_kelamin', 'agama',
         'status_perkawinan', 'jenis_kepegawaian', 'employee_status', 'kedudukan', 'jalan',
         'rt_rw', 'kelurahan', 'kecamatan', 'kabupaten', 'provinsi', 'telepon', 'telepon_darurat_hubungan',
         'telepon_darurat', 'karpeg', 'kartu_asn', 'bpjs', 'taspen', 'karis_karsu', 'npwp',
@@ -41,9 +41,18 @@ class EmployeeModel extends Model
         'filter_bangsal' => 'units.name',
         'filter_status' => 'employees.jenis_kepegawaian',
         'filter_ketenagaan' => 'employees.jenis_ketenagaan',
-        'filter_status_data' => 'employees.employee_status',
         'filter_jabatan' => 'employees.jabatan_nama',
         'filter_jenjang' => 'employees.jenjang_jabatan',
+    ];
+
+    public const EMPLOYMENT_STATUS_GROUPS = [
+        'asn' => ['CPNS', 'PNS', 'PPPK', 'PPPK Paruh Waktu'],
+        'blud' => ['BLUD Tetap', 'BLUD Kontrak'],
+        'mitra' => ['Mitra Penuh Waktu', 'Mitra Paruh Waktu'],
+    ];
+
+    public const INACTIVE_EMPLOYEE_STATUSES = [
+        'pensiun', 'mutasi keluar', 'habis kontrak', 'mengundurkan diri', 'nonaktif',
     ];
 
     /**
@@ -93,8 +102,46 @@ class EmployeeModel extends Model
         foreach (self::LIST_FILTER_COLUMNS as $key => $column) {
             $value = trim((string) ($filters[$key] ?? ''));
             if ($value !== '') {
-                $builder->where($column, $value);
+                if ($key === 'filter_ketenagaan') {
+                    $catalog = new JobTitleModel();
+                    $group = $catalog->canonicalGroup($value) ?? $value;
+                    $titles = $catalog->allGrouped()[$group] ?? [];
+                    $builder->groupStart()->where($column, $value);
+                    if ($group !== $value) {
+                        $builder->orWhere($column, $group);
+                    }
+                    if ($group === 'Dokter') {
+                        $builder->orWhere($column, 'DOKTER UMUM');
+                    }
+                    if ($titles !== []) {
+                        $builder->orWhereIn('employees.jabatan_nama', $titles)
+                            ->orWhereIn($column, $titles);
+                    }
+                    $builder->groupEnd();
+                } else {
+                    $builder->where($column, $value);
+                }
             }
+        }
+        if (! empty($filters['active_only'])) {
+            foreach (['employees.employee_status', 'employees.kedudukan'] as $column) {
+                $builder->groupStart()
+                    ->whereNotIn($column, ['Pensiun', 'Mutasi Keluar', 'Habis Kontrak', 'Mengundurkan Diri', 'Nonaktif'])
+                    ->orWhere($column, null)
+                    ->orWhere($column, '')
+                    ->groupEnd();
+            }
+        }
+        $statusGroup = (string) ($filters['filter_status_group'] ?? '');
+        if (isset(self::EMPLOYMENT_STATUS_GROUPS[$statusGroup])) {
+            $builder->whereIn('employees.jenis_kepegawaian', self::EMPLOYMENT_STATUS_GROUPS[$statusGroup]);
+        } elseif ($statusGroup === 'other') {
+            $knownStatuses = array_merge(...array_values(self::EMPLOYMENT_STATUS_GROUPS));
+            $builder->groupStart()
+                ->whereNotIn('employees.jenis_kepegawaian', $knownStatuses)
+                ->orWhere('employees.jenis_kepegawaian', null)
+                ->orWhere('employees.jenis_kepegawaian', '')
+                ->groupEnd();
         }
         $jpl = $filters['filter_jpl'] ?? '';
         if ($jpl === 'kurang') {
@@ -139,6 +186,13 @@ class EmployeeModel extends Model
                 ->where($column . ' IS NOT NULL')
                 ->where($column . ' !=', '')
                 ->orderBy($column);
+            foreach (['employees.employee_status', 'employees.kedudukan'] as $statusColumn) {
+                $builder->groupStart()
+                    ->whereNotIn($statusColumn, ['Pensiun', 'Mutasi Keluar', 'Habis Kontrak', 'Mengundurkan Diri', 'Nonaktif'])
+                    ->orWhere($statusColumn, null)
+                    ->orWhere($statusColumn, '')
+                    ->groupEnd();
+            }
             $options[$key] = $this->scopeVisibleTo($builder, $user)
                 ? array_column($builder->get()->getResultArray(), 'value')
                 : [];
@@ -227,6 +281,16 @@ class EmployeeModel extends Model
         $history = new EmployeeHistoryModel();
         foreach (EmployeeProfileData::officialHistorySections() as $category => $section) {
             $records = $history->forEmployee($employeeId, $category);
+            if ($category === 'jabatan') {
+                $jobTitles = new JobTitleModel();
+                foreach ($records as &$record) {
+                    if (trim((string) ($record['jenis_ketenagaan'] ?? '')) === '') {
+                        $record['jenis_ketenagaan'] = $jobTitles->canonicalGroup(trim((string) ($record['nama_jabatan'] ?? '')))
+                            ?? trim((string) ($row['jenis_ketenagaan'] ?? ''));
+                    }
+                }
+                unset($record);
+            }
             if ($category === 'anak') {
                 foreach ($records as &$record) {
                     $record['dokumen'] = $documents->historyAttachmentFor($employeeId, (int) $record['id'], $editable);

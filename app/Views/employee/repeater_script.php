@@ -1,6 +1,35 @@
 <?php // Add/remove behaviour for repeatable sections (G-X) and education rows (J). ?>
 <script>
 (function () {
+    const jobTitlesByGroup = <?= json_encode($job_titles_by_group ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?>;
+    const syncJobTitleSelect = function (select, discardInvalid = false) {
+        const row = select.closest('.history-entry');
+        const jobGroupSelect = row?.querySelector('[data-job-group-select]');
+        const group = jobGroupSelect?.value.trim() || '';
+        const titles = jobTitlesByGroup[group] || [];
+        const previous = select.value;
+        const original = select.dataset.originalJobTitle || '';
+        const retainOldValue = original !== '';
+        const selected = titles.includes(previous) || (!discardInvalid && retainOldValue && previous === original) ? previous : '';
+
+        select.replaceChildren(new Option(group ? 'Pilih nama jabatan' : 'Pilih jenis ketenagaan dahulu', ''));
+        titles.forEach(function (title) { select.add(new Option(title, title)); });
+        if (!discardInvalid && retainOldValue && !titles.includes(original)) {
+            select.add(new Option(original + ' (data lama)', original));
+        }
+        select.value = selected;
+        select.disabled = group === '' && !retainOldValue;
+    };
+    const syncAllJobTitles = function () {
+        document.querySelectorAll('[data-job-title-select]').forEach(syncJobTitleSelect);
+    };
+    document.addEventListener('change', function (event) {
+        if (!event.target.matches('[data-job-group-select]')) return;
+        const row = event.target.closest('.history-entry');
+        row?.querySelectorAll('[data-job-title-select]').forEach(function (select) { syncJobTitleSelect(select, true); });
+    });
+    syncAllJobTitles();
+
     document.querySelectorAll('[data-history-section]').forEach(function (section) {
         const addButton = section.querySelector('[data-add-history]');
         const template = section.querySelector('template[data-history-template]');
@@ -15,6 +44,7 @@
             });
             entries.querySelector('[data-empty-row]')?.remove();
             entries.appendChild(entry);
+            entry.querySelectorAll('[data-job-title-select]').forEach(syncJobTitleSelect);
             entry.querySelector('input:not([type="hidden"]), select, textarea')?.focus();
             nextIndex += 1;
             section.dataset.nextIndex = String(nextIndex);

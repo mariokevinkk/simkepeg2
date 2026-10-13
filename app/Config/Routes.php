@@ -24,9 +24,15 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('/manajemen-bangsal', 'Home::manajemenBangsal');
     $routes->post('/manajemen-bangsal', 'AdminManagementController::createUnit', ['filter' => 'csrf']);
     $routes->post('/manajemen-bangsal/(:num)/status', 'AdminManagementController::updateUnitStatus/$1', ['filter' => 'csrf']);
+    $routes->get('/manajemen-jabatan', 'JobTitleController::index');
+    $routes->post('/manajemen-jabatan', 'JobTitleController::create', ['filter' => 'csrf']);
+    $routes->post('/manajemen-jabatan/(:num)/status', 'JobTitleController::updateStatus/$1', ['filter' => 'csrf']);
     $routes->get('/detail-bangsal', 'Home::detailBangsal');
     $routes->get('/pensiun', 'Home::pensiun');
     $routes->post('/pensiun/(:num)/tetapkan', 'EmployeeController::retire/$1', ['filter' => 'csrf']);
+    $routes->get('/pegawai-nonaktif', 'Home::pegawaiNonaktif');
+    $routes->post('/pegawai-nonaktif', 'EmployeeController::nonaktifkan', ['filter' => 'csrf']);
+    $routes->post('/pegawai-nonaktif/bup', 'EmployeeController::updateRetirementBup', ['filter' => 'csrf']);
     $routes->get('/profil-pegawai', 'Home::profilPegawai');
     $routes->get('/edit-pegawai', 'Home::editPegawai');
     $routes->get('/view-pegawai', 'Home::viewPegawai');
@@ -39,6 +45,8 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('/aktivitas', 'Home::aktivitas');
     $routes->get('/riwayat-kepangkatan', 'Home::riwayatKepangkatan');
     $routes->get('/riwayat-jabatan', 'Home::riwayatJabatan');
+    $routes->get('/sip', 'Home::sip');
+    $routes->get('/str', 'Home::str');
     $routes->get('/riwayat-pendidikan', 'Home::riwayatPendidikan');
     $routes->get('/data-keluarga', 'Home::dataKeluarga');
     $routes->get('/data-lainnya', 'Home::dataLainnya');

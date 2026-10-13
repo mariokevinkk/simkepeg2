@@ -1,14 +1,18 @@
 <?= $this->extend('layout/main') ?>
 <?= $this->section('content') ?>
 <style>
-    .employee-filter { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; align-items:center; margin:18px 0; }
+    .employee-filter { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; align-items:end; margin:18px 0; }
     .employee-filter .search-wide { grid-column:span 2; }
-    .employee-filter-actions { display:flex; gap:8px; }
+    .employee-filter-field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+    .employee-filter-field label { color:var(--text-main); font-size:12px; font-weight:600; line-height:1.35; }
+    .employee-filter-field .form-control { width:100%; }
+    .employee-filter-actions { display:flex; flex-wrap:wrap; gap:8px; }
     .employee-table-wrap { overflow:auto; }
     .employee-actions { display:flex; gap:7px; }
     .employee-count { color:var(--text-muted); font-size:13px; }
     @media(max-width:1050px) { .employee-filter { grid-template-columns:repeat(3,minmax(0,1fr)); } }
     @media(max-width:650px) { .employee-filter { grid-template-columns:1fr 1fr; } .employee-filter .search-wide { grid-column:1/-1; } }
+    @media(max-width:420px) { .employee-filter { grid-template-columns:1fr; } .employee-filter .search-wide { grid-column:auto; } }
     .employee-pagination { align-items:center; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; margin:14px 0 0; }
     .employee-pages { display:flex; flex-wrap:wrap; gap:4px; }
     .employee-pages a, .employee-pages span { align-items:center; border:1px solid var(--border); border-radius:8px; color:var(--text-main); display:inline-flex; font-size:13px; height:34px; justify-content:center; min-width:34px; padding:0 8px; text-decoration:none; background:var(--bg-surface); }
@@ -31,7 +35,7 @@
 <div class="flex-mobile-stack" style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
     <div><h1 class="page-title" style="margin:0;">Data Pegawai</h1><p class="employee-count" style="margin:5px 0 0;">Daftar sesuai unit yang dapat diakses akun Anda.</p></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <?php $exportQuery = array_filter(service('request')->getGet() ?? [], static fn ($value, $key): bool => is_scalar($value) && $value !== '' && ! in_array($key, ['page', 'per_page'], true), ARRAY_FILTER_USE_BOTH); ?>
+        <?php $exportQuery = array_filter(service('request')->getGet() ?? [], static fn ($value, $key): bool => is_scalar($value) && $value !== '' && ! in_array($key, ['page', 'per_page', 'filter_status_data'], true), ARRAY_FILTER_USE_BOTH); ?>
         <a class="btn btn-outline" href="<?= esc(base_url('/data-pegawai/excel') . ($exportQuery !== [] ? '?' . http_build_query($exportQuery) : '')) ?>" style="text-decoration:none;" title="Semua pegawai yang cocok dengan filter, beserta seluruh riwayatnya"><i class="fa-solid fa-file-excel"></i> Unduh Excel</a>
         <?php if (! empty($can_create)): ?><a class="btn btn-primary" href="<?= base_url('/employees/new') ?>" style="text-decoration:none;"><i class="fa-solid fa-user-plus"></i> Tambah pegawai</a><?php endif; ?>
     </div>
@@ -40,33 +44,140 @@
 <?php if ($success = session()->getFlashdata('success')): ?><div class="main-card" style="margin-top:16px;color:var(--success);padding:12px 16px;"><?= esc($success) ?></div><?php endif; ?>
 <form class="employee-filter" method="get" action="<?= base_url('/data-pegawai') ?>">
     <input type="hidden" name="per_page" value="<?= (int) $pagination['per_page'] ?>">
-    <input class="form-control search-wide" type="search" name="q" value="<?= esc($q ?? '') ?>" placeholder="Cari nama atau NIP">
+    <div class="employee-filter-field search-wide">
+        <label for="employee-filter-search">Cari pegawai</label>
+        <input class="form-control" id="employee-filter-search" type="search" name="q" value="<?= esc($q ?? '') ?>" placeholder="Cari nama atau NIP">
+    </div>
     <?php
     $selects = [
-        'filter_bangsal' => ['Semua unit', $unitOptions],
-        'filter_ketenagaan' => ['Semua jenis ketenagaan', $ketenagaanOptions],
-        'filter_status' => ['Semua status kepegawaian', $statusOptions],
-        'filter_status_data' => ['Semua status data', $statusDataOptions],
-        'filter_jabatan' => ['Semua jabatan', $jabatanOptions],
-        'filter_jenjang' => ['Semua jenjang', $jenjangOptions],
+        'filter_bangsal' => ['Unit', 'Semua unit', $unitOptions],
     ];
     ?>
-    <?php foreach ($selects as $name => [$placeholder, $options]): ?>
-        <select class="form-control" name="<?= $name ?>" aria-label="<?= esc($placeholder) ?>"><option value=""><?= esc($placeholder) ?></option><?php foreach ($options as $option): ?><option value="<?= esc($option) ?>" <?= ($$name ?? '') === $option ? 'selected' : '' ?>><?= esc($option) ?></option><?php endforeach; ?></select>
+    <div class="employee-filter-field">
+        <label for="filter-status-group">Kelompok status kepegawaian</label>
+        <select class="form-control" id="filter-status-group" name="filter_status_group">
+            <option value="">Semua kelompok status kepegawaian</option>
+            <?php foreach ($statusGroupOptions as $groupKey => $groupLabel): ?>
+                <option value="<?= esc($groupKey) ?>" <?= ($filter_status_group ?? '') === $groupKey ? 'selected' : '' ?>><?= esc($groupLabel) ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <div class="employee-filter-field">
+        <label for="filter-status-detail">Detail status kepegawaian</label>
+        <select class="form-control" id="filter-status-detail" name="filter_status" <?= ($filter_status_group ?? '') === '' ? 'disabled' : '' ?>>
+            <option value=""><?= ($filter_status_group ?? '') === '' ? 'Pilih kelompok terlebih dahulu' : 'Semua detail status' ?></option>
+            <?php foreach ($statusOptions as $option): ?>
+                <?php
+                $optionGroup = 'other';
+                foreach (\App\Models\EmployeeModel::EMPLOYMENT_STATUS_GROUPS as $groupKey => $types) {
+                    if (in_array($option, $types, true)) { $optionGroup = $groupKey; break; }
+                }
+                ?>
+                <option value="<?= esc($option) ?>" data-status-group="<?= esc($optionGroup) ?>" <?= ($filter_status ?? '') === $option ? 'selected' : '' ?>><?= esc($option) ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <?php foreach ($selects as $name => [$label, $placeholder, $options]): ?>
+        <div class="employee-filter-field">
+            <label for="<?= esc($name) ?>"><?= esc($label) ?></label>
+            <select class="form-control" id="<?= esc($name) ?>" name="<?= esc($name) ?>"><option value=""><?= esc($placeholder) ?></option><?php foreach ($options as $option): ?><option value="<?= esc($option) ?>" <?= ($$name ?? '') === $option ? 'selected' : '' ?>><?= esc($option) ?></option><?php endforeach; ?></select>
+        </div>
     <?php endforeach; ?>
-    <select class="form-control" name="filter_dokumen" aria-label="Kelengkapan dokumen"><option value="">Semua kelengkapan dokumen</option><option value="belum" <?= ($filter_dokumen ?? '') === 'belum' ? 'selected' : '' ?>>Dokumen wajib belum lengkap</option><option value="lengkap" <?= ($filter_dokumen ?? '') === 'lengkap' ? 'selected' : '' ?>>Dokumen wajib lengkap</option></select>
-    <select class="form-control" name="filter_jpl" aria-label="Semua JPL"><option value="">Semua JPL</option><option value="kurang" <?= ($filter_jpl ?? '') === 'kurang' ? 'selected' : '' ?>>Kurang dari 20</option><option value="terpenuhi" <?= ($filter_jpl ?? '') === 'terpenuhi' ? 'selected' : '' ?>>20 atau lebih</option></select>
+    <div class="employee-filter-field">
+        <label for="filter_ketenagaan">Jenis ketenagaan</label>
+        <select class="form-control" id="filter_ketenagaan" name="filter_ketenagaan">
+            <option value="">Semua jenis ketenagaan</option>
+            <?php foreach ($ketenagaanOptions as $option): ?>
+                <option value="<?= esc($option) ?>" <?= ($filter_ketenagaan ?? '') === $option ? 'selected' : '' ?>><?= esc($option) ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <div class="employee-filter-field">
+        <label for="filter_jabatan">Jabatan</label>
+        <select class="form-control" id="filter_jabatan" name="filter_jabatan" <?= ($filter_ketenagaan ?? '') === '' ? 'disabled' : '' ?>>
+            <option value=""><?= ($filter_ketenagaan ?? '') === '' ? 'Pilih jenis ketenagaan dahulu' : 'Semua jabatan' ?></option>
+            <?php foreach ($jobOptionsByKetenagaan as $group => $titles): ?>
+                <?php foreach ($titles as $title): ?>
+                    <option value="<?= esc($title) ?>" data-ketenagaan="<?= esc($group) ?>" <?= ($filter_ketenagaan ?? '') === $group && ($filter_jabatan ?? '') === $title ? 'selected' : '' ?>><?= esc($title) ?></option>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <div class="employee-filter-field">
+        <label for="filter_jenjang">Jenjang</label>
+        <select class="form-control" id="filter_jenjang" name="filter_jenjang"><option value="">Semua jenjang</option><?php foreach ($jenjangOptions as $option): ?><option value="<?= esc($option) ?>" <?= ($filter_jenjang ?? '') === $option ? 'selected' : '' ?>><?= esc($option) ?></option><?php endforeach; ?></select>
+    </div>
+    <div class="employee-filter-field">
+        <label for="filter_dokumen">Kelengkapan dokumen</label>
+        <select class="form-control" id="filter_dokumen" name="filter_dokumen"><option value="">Semua kelengkapan dokumen</option><option value="belum" <?= ($filter_dokumen ?? '') === 'belum' ? 'selected' : '' ?>>Dokumen wajib belum lengkap</option><option value="lengkap" <?= ($filter_dokumen ?? '') === 'lengkap' ? 'selected' : '' ?>>Dokumen wajib lengkap</option></select>
+    </div>
+    <div class="employee-filter-field">
+        <label for="filter_jpl">Capaian JPL</label>
+        <select class="form-control" id="filter_jpl" name="filter_jpl"><option value="">Semua JPL</option><option value="kurang" <?= ($filter_jpl ?? '') === 'kurang' ? 'selected' : '' ?>>Kurang dari 20</option><option value="terpenuhi" <?= ($filter_jpl ?? '') === 'terpenuhi' ? 'selected' : '' ?>>20 atau lebih</option></select>
+    </div>
     <div class="employee-filter-actions">
         <button class="btn btn-primary" type="submit"><i class="fa-solid fa-filter"></i> Filter</button>
         <?php if (! empty($has_filter)): ?><a class="btn btn-outline" style="text-decoration:none;" href="<?= base_url('/data-pegawai') ?>"><i class="fa-solid fa-rotate-left"></i> Reset</a><?php endif; ?>
     </div>
 </form>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const groupSelect = document.getElementById('filter-status-group');
+    const detailSelect = document.getElementById('filter-status-detail');
+    if (groupSelect && detailSelect) {
+        function updateStatusDetails(resetSelection) {
+            const group = groupSelect.value;
+            detailSelect.disabled = group === '';
+            Array.from(detailSelect.options).forEach(function (option) {
+                if (option.value === '') {
+                    option.hidden = false;
+                    option.textContent = group === '' ? 'Pilih kelompok terlebih dahulu' : 'Semua detail status';
+                    return;
+                }
+                option.hidden = group !== '' && option.dataset.statusGroup !== group;
+            });
+            if (resetSelection || (detailSelect.selectedOptions[0]?.dataset.statusGroup !== group && detailSelect.value !== '')) {
+                detailSelect.value = '';
+            }
+        }
+
+        updateStatusDetails(false);
+        groupSelect.addEventListener('change', function () { updateStatusDetails(true); });
+    }
+
+    const workforceSelect = document.getElementById('filter_ketenagaan');
+    const jobSelect = document.getElementById('filter_jabatan');
+    if (workforceSelect && jobSelect) {
+        function updateJobOptions(resetSelection) {
+            const workforce = workforceSelect.value;
+            let hasOptions = false;
+            Array.from(jobSelect.options).forEach(function (option) {
+                if (option.value === '') return;
+                const matches = option.dataset.ketenagaan === workforce;
+                option.hidden = !matches;
+                option.disabled = !matches;
+                hasOptions ||= matches;
+            });
+            if (resetSelection || jobSelect.selectedOptions[0]?.dataset.ketenagaan !== workforce) {
+                jobSelect.value = '';
+            }
+            jobSelect.disabled = workforce === '' || !hasOptions;
+            jobSelect.options[0].textContent = workforce === ''
+                ? 'Pilih jenis ketenagaan dahulu'
+                : (hasOptions ? 'Semua jabatan' : 'Belum ada jabatan');
+        }
+
+        updateJobOptions(false);
+        workforceSelect.addEventListener('change', function () { updateJobOptions(true); });
+    }
+});
+</script>
 <?php
 $firstRow = $pagination['total'] === 0 ? 0 : ($pagination['page'] - 1) * $pagination['per_page'] + 1;
 $lastRow = min($pagination['total'], $pagination['page'] * $pagination['per_page']);
 // Link to another page with every current filter kept.
 $pageUrl = static function (int $page, ?int $perPage = null): string {
-    $query = array_filter(service('request')->getGet() ?? [], static fn ($value): bool => is_scalar($value) && $value !== '');
+    $query = array_filter(service('request')->getGet() ?? [], static fn ($value, $key): bool => is_scalar($value) && $value !== '' && $key !== 'filter_status_data', ARRAY_FILTER_USE_BOTH);
     $query['page'] = $page;
     if ($perPage !== null) {
         $query['per_page'] = $perPage;
@@ -84,9 +195,9 @@ for ($number = 1; $number <= $pagination['pages']; $number++) {
 <p class="employee-count" style="margin:0 0 12px;"><?= $pagination['total'] ?> pegawai<?= $pagination['total'] > 0 ? ' · menampilkan ' . $firstRow . '–' . $lastRow : '' ?></p>
 <div class="main-card employee-table-wrap" style="padding:0;">
     <table class="data-table">
-        <thead><tr><th>Nama / NIP</th><th>Unit</th><th>Jenis ketenagaan</th><th>Status kepegawaian</th><th>Status data</th><th>Jabatan</th><th>STR &amp; SIP</th><th>Dokumen wajib</th><th>Jenjang</th><th>JPL</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Nama / NIP</th><th>Unit</th><th>Jenis ketenagaan</th><th>Status kepegawaian</th><th>Jabatan</th><th>STR &amp; SIP</th><th>Dokumen wajib</th><th>Jenjang</th><th>JPL</th><th>Aksi</th></tr></thead>
         <tbody>
-        <?php if ($pegawaiList === []): ?><tr><td colspan="11" style="text-align:center;padding:32px;color:var(--text-muted);">Belum ada data pegawai yang cocok.</td></tr><?php endif; ?>
+        <?php if ($pegawaiList === []): ?><tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);">Belum ada data pegawai yang cocok.</td></tr><?php endif; ?>
         <?php foreach ($pegawaiList as $row): ?>
             <?php
             $docs = $row['dokumen'];
@@ -100,7 +211,6 @@ for ($number = 1; $number <= $pagination['pages']; $number++) {
                 <td><?= esc($row['bangsal'] ?: '—') ?></td>
                 <td><?= esc($row['jenis'] ?: '—') ?></td>
                 <td><?= esc($row['status_kep'] ?: '—') ?></td>
-                <td><?= esc($row['status'] ?: '—') ?></td>
                 <td><?= esc($row['jabatan'] ?: '—') ?></td>
                 <td>
                     <?php if ($strSip === null || (! $strSip['required'] && $strSip['status'] === 'missing')): ?>—
@@ -118,6 +228,16 @@ for ($number = 1; $number <= $pagination['pages']; $number++) {
                         <button type="button" class="missing-docs-button" data-missing-docs="<?= esc(json_encode(array_values($missingDocs), JSON_UNESCAPED_UNICODE)) ?>" data-employee-name="<?= esc($row['nama']) ?>" data-documents-url="<?= base_url('/view-pegawai?id=' . (int) $row['id'] . '&bagian=dokumen-pegawai') ?>">
                             <i class="fa-solid fa-circle-exclamation"></i> <?= count($missingDocs) ?> kurang
                         </button>
+                    <?php endif; ?>
+                    <?php if (! empty($docs['revisions'])): ?>
+                        <details style="margin-top:6px;font-size:11px;color:#b91c1c;">
+                            <summary style="cursor:pointer;font-weight:700;"><?= count($docs['revisions']) ?> dokumen perlu perbaikan</summary>
+                            <div style="margin-top:5px;max-width:240px;white-space:normal;">
+                                <?php foreach ($docs['revisions'] as $revision): ?>
+                                    <div style="padding:5px 0;border-top:1px solid #fecaca;"><strong><?= esc($revision['title']) ?></strong><?php if ($revision['note'] !== ''): ?><br><?= nl2br(esc($revision['note'])) ?><?php endif; ?></div>
+                                <?php endforeach; ?>
+                            </div>
+                        </details>
                     <?php endif; ?>
                 </td>
                 <td><?= esc($row['jenjang'] ?: '—') ?></td>

@@ -10,11 +10,14 @@ $documentMode = $editable && ! empty($can_manage_documents) ? 'edit' : 'detail';
 $needsLoginAccount = $editable && ($role ?? '') !== 'pegawai' && empty($employee['user_id']);
 $coreSections = \App\Libraries\EmployeeProfileData::officialCoreSections();
 $historySections = \App\Libraries\EmployeeProfileData::officialHistorySections();
+$profilePages = \App\Libraries\EmployeeProfileData::profilePages();
+$currentPage = $profile_page ?? 'profil-pegawai';
+$professionalLicenseSections = \App\Libraries\EmployeeProfileData::professionalLicenseSections();
+$professionalLicense = $professionalLicenseSections[$currentPage] ?? null;
+$jobTitlesByGroup = $editable ? (new \App\Models\JobTitleModel())->allGrouped() : [];
 $protectedFields = ['nip', 'nip_lama', 'employee_status', 'jenis_kepegawaian', 'kedudukan'];
 $latestEducationSection = \App\Libraries\EmployeeProfileData::officialLatestEducationSection();
 $checklist = $profile['checklist'] ?? [];
-$profilePages = \App\Libraries\EmployeeProfileData::profilePages();
-$currentPage = $profile_page ?? 'profil-pegawai';
 $pageSections = $profilePages[$currentPage]['sections'] ?? ['A'];
 $showSection = static fn (string $letter): bool => in_array($letter, $pageSections, true);
 $isPegawaiView = ($role ?? '') === 'pegawai';
@@ -122,6 +125,27 @@ $sectionDocuments = $checklist['by_section'] ?? [];
         </section>
     <?php endforeach; ?>
 
+    <?php if ($professionalLicense !== null): ?>
+    <section class="employee-section">
+        <h2><?= esc($professionalLicense['title']) ?></h2>
+        <p style="color:var(--text-muted);font-size:13px;margin:0 0 16px;">Isi nomor dan masa berlaku, lalu unggah dokumen <?= esc($professionalLicense['section']) ?> pada bagian dokumen pendukung.</p>
+        <div class="employee-fields">
+            <?php foreach ($professionalLicense['fields'] as $fieldDefinition): ?>
+                <?php [$key, $label, $type] = array_pad($fieldDefinition, 3, 'text'); $value = $employee[$key] ?? ''; ?>
+                <div class="employee-field">
+                    <label class="form-label" for="<?= esc($key) ?>"><?= esc($label) ?></label>
+                    <?php if ($editable): ?>
+                        <?= employee_field_input($fieldDefinition, $key, old($key, $value), ['id' => $key]) ?>
+                    <?php else: ?>
+                        <div class="employee-value"><?= employee_field_display($value, $fieldDefinition) ?></div>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?= view('employee/section_documents', ['section_documents' => $sectionDocuments[$professionalLicense['section']] ?? [], 'document_mode' => $documentMode]) ?>
+    </section>
+    <?php endif; ?>
+
     <?php if ($showSection('F')): ?>
     <section class="employee-section">
         <h2><?= esc($latestEducationSection['letter'] . '. ' . $latestEducationSection['title']) ?></h2>
@@ -149,6 +173,7 @@ $sectionDocuments = $checklist['by_section'] ?? [];
                 'history_section' => $section,
                 'history_records' => $historyRecords[$category] ?? [],
                 'editable_history' => $editable,
+                'job_titles_by_group' => $jobTitlesByGroup,
                 'section_documents' => $sectionDocuments[$section['letter']] ?? [],
                 'document_mode' => $documentMode,
             ]) ?>
@@ -188,5 +213,5 @@ $sectionDocuments = $checklist['by_section'] ?? [];
     ]) ?>
 <?php endif; ?>
 <?php if ($editable): ?></form><?php endif; ?>
-<?php if ($editable): ?><?= view('employee/repeater_script') ?><?php endif; ?>
+<?php if ($editable): ?><?= view('employee/repeater_script', ['job_titles_by_group' => $jobTitlesByGroup]) ?><?php endif; ?>
 <?= $this->endSection() ?>

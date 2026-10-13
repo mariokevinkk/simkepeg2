@@ -21,16 +21,16 @@ class PensiunTestSeeder extends Seeder
 {
     /** months = bulan sampai TMT pensiun (negatif = sudah lewat); null = sudah berstatus pensiun. */
     private array $people = [
-        ['nama' => 'Sutrisno Hadi', 'jk' => 'Laki-laki', 'jabatan' => 'Pengadministrasi Umum', 'jenjang' => '', 'jenis' => 'PNS', 'months' => -1],
-        ['nama' => 'Sri Rahayu', 'jk' => 'Perempuan', 'jabatan' => 'Perawat Terampil', 'jenjang' => 'Terampil', 'jenis' => 'PNS', 'months' => 1],
-        ['nama' => 'Bambang Wijayanto', 'jk' => 'Laki-laki', 'jabatan' => 'Pengelola Keuangan', 'jenjang' => '', 'jenis' => 'PNS', 'months' => 4],
-        ['nama' => 'Endang Purwaningsih', 'jk' => 'Perempuan', 'jabatan' => 'Perawat Ahli Madya', 'jenjang' => 'Ahli Madya', 'jenis' => 'PNS', 'months' => 9],
-        ['nama' => 'Agus Setiawan', 'jk' => 'Laki-laki', 'jabatan' => 'Pranata Laboratorium Kesehatan Terampil', 'jenjang' => 'Terampil', 'jenis' => 'BLUD Tetap', 'months' => 18],
-        ['nama' => 'Hartono', 'jk' => 'Laki-laki', 'jabatan' => 'Dokter Ahli Utama', 'jenjang' => 'Ahli Utama', 'jenis' => 'PNS', 'months' => 36],
-        ['nama' => 'Yuliana Kartika', 'jk' => 'Perempuan', 'jabatan' => 'Bidan Ahli Muda', 'jenjang' => 'Ahli Muda', 'jenis' => 'PNS', 'months' => 54],
-        ['nama' => 'Heru Santoso', 'jk' => 'Laki-laki', 'jabatan' => 'Sanitarian Terampil', 'jenjang' => 'Terampil', 'jenis' => 'PNS', 'months' => 84],
-        ['nama' => 'Suharti', 'jk' => 'Perempuan', 'jabatan' => 'Perawat Terampil', 'jenjang' => 'Terampil', 'jenis' => 'PNS', 'months' => null],
-        ['nama' => 'Wahyudi', 'jk' => 'Laki-laki', 'jabatan' => 'Pengadministrasi Umum', 'jenjang' => '', 'jenis' => 'PNS', 'months' => null],
+        ['nama' => 'Sutrisno Hadi', 'jk' => 'Laki-laki', 'jabatan' => 'Pengadministrasi Perkantoran', 'ketenagaan' => 'Tenaga Umum Non Kesehatan', 'jenjang' => '', 'jenis' => 'PNS', 'months' => -1],
+        ['nama' => 'Sri Rahayu', 'jk' => 'Perempuan', 'jabatan' => 'Perawat Terampil', 'ketenagaan' => 'Perawat', 'jenjang' => 'Terampil', 'jenis' => 'PNS', 'months' => 1],
+        ['nama' => 'Bambang Wijayanto', 'jk' => 'Laki-laki', 'jabatan' => 'Pengelola Umum Operasional', 'ketenagaan' => 'Tenaga Umum Non Kesehatan', 'jenjang' => '', 'jenis' => 'PNS', 'months' => 4],
+        ['nama' => 'Endang Purwaningsih', 'jk' => 'Perempuan', 'jabatan' => 'Perawat Ahli Madya', 'ketenagaan' => 'Perawat', 'jenjang' => 'Ahli Madya', 'jenis' => 'PNS', 'months' => 9],
+        ['nama' => 'Agus Setiawan', 'jk' => 'Laki-laki', 'jabatan' => 'Pranata Laboratorium Kesehatan Terampil', 'ketenagaan' => 'Pranata Laboratorium Kesehatan', 'jenjang' => 'Terampil', 'jenis' => 'BLUD Tetap', 'months' => 18],
+        ['nama' => 'Hartono', 'jk' => 'Laki-laki', 'jabatan' => 'Dokter Ahli Utama', 'ketenagaan' => 'Dokter', 'jenjang' => 'Ahli Utama', 'jenis' => 'PNS', 'months' => 36],
+        ['nama' => 'Yuliana Kartika', 'jk' => 'Perempuan', 'jabatan' => 'Bidan Ahli Muda', 'ketenagaan' => 'Bidan', 'jenjang' => 'Ahli Muda', 'jenis' => 'PNS', 'months' => 54],
+        ['nama' => 'Heru Santoso', 'jk' => 'Laki-laki', 'jabatan' => 'Sanitarian Terampil', 'ketenagaan' => 'Sanitarian', 'jenjang' => 'Terampil', 'jenis' => 'PNS', 'months' => 84],
+        ['nama' => 'Suharti', 'jk' => 'Perempuan', 'jabatan' => 'Perawat Terampil', 'ketenagaan' => 'Perawat', 'jenjang' => 'Terampil', 'jenis' => 'PNS', 'months' => null],
+        ['nama' => 'Wahyudi', 'jk' => 'Laki-laki', 'jabatan' => 'Pengadministrasi Perkantoran', 'ketenagaan' => 'Tenaga Umum Non Kesehatan', 'jenjang' => '', 'jenis' => 'PNS', 'months' => null],
     ];
 
     public function run()
@@ -78,7 +78,7 @@ class PensiunTestSeeder extends Seeder
                     'jenis_kepegawaian' => $person['jenis'],
                     'employee_status' => $retired ? 'Pensiun' : 'Aktif',
                     'kedudukan' => $retired ? 'Pensiun' : 'Aktif',
-                    'jenis_ketenagaan' => mb_strtoupper($person['jabatan']),
+                    'jenis_ketenagaan' => $person['ketenagaan'],
                     'jenjang_jabatan' => $person['jenjang'],
                     'unit_kerja' => $unit['name'],
                 ];
