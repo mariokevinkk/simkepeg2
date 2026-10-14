@@ -33,7 +33,7 @@ class JobTitleController extends BaseController
             'active_menu' => 'manajemen-jabatan',
             'role' => $user['role'] === 'superadmin' ? 'superadmin' : 'admin',
             'groups' => $groups,
-            'can_manage_status' => $user['role'] === 'superadmin',
+            'can_manage_status' => in_array($user['role'] ?? '', ['superadmin', 'admin_unit'], true),
         ]);
     }
 
@@ -74,10 +74,6 @@ class JobTitleController extends BaseController
         if ($denied = $this->requireAdmin()) {
             return $denied;
         }
-        if ((EmployeeAccess::user()['role'] ?? '') !== 'superadmin') {
-            return redirect()->to('/');
-        }
-
         $model = new JobTitleModel();
         $job = $model->find($jobId);
         $isActive = (string) $this->request->getPost('is_active');

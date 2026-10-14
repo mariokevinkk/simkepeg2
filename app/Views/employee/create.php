@@ -4,6 +4,7 @@
 <?php
 $coreSections = array_merge(\App\Libraries\EmployeeProfileData::officialCoreSections(), [\App\Libraries\EmployeeProfileData::officialLatestEducationSection()]);
 $jobTitlesByGroup = (new \App\Models\JobTitleModel())->allGrouped();
+$showAsnSections = \App\Models\EmployeeModel::isAsnType((string) old('jenis_kepegawaian', ''));
 ?>
 <style>
     .create-employee-sections { max-width:1100px; margin:0 auto; }
@@ -36,7 +37,8 @@ $jobTitlesByGroup = (new \App\Models\JobTitleModel())->allGrouped();
             </div>
         </section>
         <?php foreach ($coreSections as $section): ?>
-            <section class="main-card create-employee-section">
+            <?php $isAsnSection = in_array($section['letter'], ['B', 'C'], true); ?>
+            <section class="main-card create-employee-section" <?= $isAsnSection ? 'data-asn-section' : '' ?><?= $isAsnSection && ! $showAsnSections ? ' hidden' : '' ?>>
                 <h2><?= esc($section['letter'] . '. ' . $section['title']) ?></h2>
                 <?= view('employee/summary_note', ['summary_letter' => $section['letter']]) ?>
                 <div class="create-employee-fields">
@@ -88,12 +90,30 @@ $jobTitlesByGroup = (new \App\Models\JobTitleModel())->allGrouped();
 (function () {
     const unitSelect = document.querySelector('[data-unit-select]');
     const unitId = document.getElementById('unit_id');
-    if (!unitSelect || !unitId) return;
-    const syncUnit = function () {
-        unitId.value = unitSelect.selectedOptions[0]?.dataset.unitId || '';
-    };
-    unitSelect.addEventListener('change', syncUnit);
-    syncUnit();
+    if (unitSelect && unitId) {
+        const syncUnit = function () {
+            unitId.value = unitSelect.selectedOptions[0]?.dataset.unitId || '';
+        };
+        unitSelect.addEventListener('change', syncUnit);
+        syncUnit();
+    }
+
+    const employmentType = document.getElementById('jenis_kepegawaian');
+    const asnSections = document.querySelectorAll('[data-asn-section]');
+    if (employmentType) {
+        const asnTypes = ['CPNS', 'PNS', 'PPPK', 'PPPK Paruh Waktu'];
+        const updateAsnSections = function () {
+            const isAsn = asnTypes.includes(employmentType.value.trim());
+            asnSections.forEach(function (section) {
+                section.hidden = !isAsn;
+                section.querySelectorAll('input, select, textarea').forEach(function (field) {
+                    field.disabled = !isAsn;
+                });
+            });
+        };
+        employmentType.addEventListener('change', updateAsnSections);
+        updateAsnSections();
+    }
 })();
 </script>
 <?= $this->endSection() ?>

@@ -85,7 +85,11 @@ class EmployeeController extends BaseController
         $initialPassword = $birthDateValue->format('dmY');
 
         $profileInput = [];
+        $isAsnEmployee = EmployeeModel::isAsnType((string) $this->request->getPost('jenis_kepegawaian'));
         foreach (array_merge(EmployeeProfileData::officialCoreSections(), [EmployeeProfileData::officialLatestEducationSection()]) as $section) {
+            if (! $isAsnEmployee && in_array($section['letter'], ['B', 'C'], true)) {
+                continue;
+            }
             foreach ($section['fields'] as $fieldDefinition) {
                 [$fieldKey, , $fieldType] = array_pad($fieldDefinition, 3, null);
                 if (EmployeeProfileData::summarySourceFor($fieldKey) !== null) {
@@ -353,6 +357,17 @@ class EmployeeController extends BaseController
         unset($payload['education'], $payload['histories'], $payload['history_sections'], $payload['csrf_test_name'], $payload['account_username']);
         if (($user['role'] ?? '') === 'pegawai') {
             unset($payload['nip'], $payload['nip_lama'], $payload['jenis_kepegawaian'], $payload['employee_status'], $payload['kedudukan']);
+        }
+        $effectiveEmploymentType = (string) ($payload['jenis_kepegawaian'] ?? $employee['jenis_kepegawaian'] ?? '');
+        if (! EmployeeModel::isAsnType($effectiveEmploymentType)) {
+            foreach (EmployeeProfileData::officialCoreSections() as $section) {
+                if (! in_array($section['letter'], ['B', 'C'], true)) {
+                    continue;
+                }
+                foreach ($section['fields'] as $fieldDefinition) {
+                    unset($payload[$fieldDefinition[0]]);
+                }
+            }
         }
         foreach ([
             'tanggal_lahir', 'tanggal_masuk', 'sip_terbit', 'sip_berlaku', 'str_terbit', 'str_berlaku',

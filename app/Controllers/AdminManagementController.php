@@ -172,6 +172,33 @@ class AdminManagementController extends BaseController
         return redirect()->to('/manajemen-bangsal')->with('success', 'Unit berhasil ditambahkan.');
     }
 
+    public function updateUnit(int $unitId)
+    {
+        if ($denied = $this->requireSuperAdmin()) {
+            return $denied;
+        }
+
+        $unitModel = new UnitModel();
+        if ($unitModel->find($unitId) === null) {
+            return redirect()->to('/manajemen-bangsal')->with('error', 'Unit tidak ditemukan.');
+        }
+
+        $name = trim((string) $this->request->getPost('name'));
+        $code = strtoupper(trim((string) $this->request->getPost('code')));
+        $type = trim((string) $this->request->getPost('type')) ?: 'unit';
+        if (mb_strlen($name) < 2 || mb_strlen($name) > 120 || mb_strlen($code) > 80 || mb_strlen($type) > 30) {
+            return redirect()->to('/manajemen-bangsal')->with('error', 'Nama unit, kode, atau jenis unit tidak valid.');
+        }
+
+        $existingName = $unitModel->where('name', $name)->first();
+        if ($existingName !== null && (int) $existingName['id'] !== $unitId) {
+            return redirect()->to('/manajemen-bangsal')->with('error', 'Nama unit sudah terdaftar.');
+        }
+
+        $unitModel->update($unitId, ['name' => $name, 'code' => $code, 'type' => $type]);
+        return redirect()->to('/manajemen-bangsal')->with('success', 'Unit berhasil diperbarui.');
+    }
+
     public function updateUnitStatus(int $unitId)
     {
         if ($denied = $this->requireSuperAdmin()) {

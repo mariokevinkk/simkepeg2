@@ -25,6 +25,7 @@ $pageUrl = static fn (string $pageKey): string => $isPegawaiView
     ? base_url('/' . $pageKey)
     : base_url(($editable ? '/edit-pegawai' : '/view-pegawai') . '?id=' . $employeeId . '&bagian=' . $pageKey);
 $sectionDocuments = $checklist['by_section'] ?? [];
+$isAsnEmployee = \App\Models\EmployeeModel::isAsnType((string) ($employee['jenis_kepegawaian'] ?? ''));
 ?>
 <?= $this->extend('layout/main') ?>
 <?= $this->section('content') ?>
@@ -91,7 +92,7 @@ $sectionDocuments = $checklist['by_section'] ?? [];
     <?php endif; ?>
 
     <?php foreach ($coreSections as $section): ?>
-        <?php if (! $showSection($section['letter'])) { continue; } ?>
+        <?php if (! $showSection($section['letter']) || (! $isAsnEmployee && in_array($section['letter'], ['B', 'C'], true))) { continue; } ?>
         <section class="employee-section">
             <h2><?= esc($section['letter'] . '. ' . $section['title']) ?></h2>
             <?= view('employee/summary_note', ['summary_letter' => $section['letter']]) ?>

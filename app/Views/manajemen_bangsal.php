@@ -5,6 +5,9 @@
     .unit-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; margin-top:20px; }
     .unit-card { background:var(--bg-surface); border:1px solid var(--border); border-radius:13px; padding:20px; }
     .unit-create-grid { display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:12px; align-items:end; }
+    .unit-edit-grid { display:grid; gap:10px; margin-top:12px; }
+    .unit-edit-toggle { display:inline-flex; align-items:center; gap:7px; cursor:pointer; list-style:none; }
+    .unit-edit-toggle::-webkit-details-marker { display:none; }
     @media(max-width:760px) { .unit-create-grid { grid-template-columns:1fr; } }
 </style>
 <div class="flex-mobile-stack" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
@@ -25,19 +28,19 @@
 <div class="unit-grid">
     <?php foreach ($units as $unit): ?>
         <article class="unit-card">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;">
-                <div><h2 style="font-size:17px;margin:0 0 5px;"><?= esc($unit['name']) ?></h2><div style="font-size:12px;color:var(--text-muted);">Kode <?= esc($unit['code'] ?: '—') ?> · <?= esc($unit['type']) ?></div></div>
-                <span class="status-badge <?= (int) $unit['is_active'] === 1 ? 'status-active' : '' ?>"><?= (int) $unit['is_active'] === 1 ? 'Aktif' : 'Nonaktif' ?></span>
-            </div>
+            <div><h2 style="font-size:17px;margin:0 0 5px;"><?= esc($unit['name']) ?></h2><div style="font-size:12px;color:var(--text-muted);">Kode <?= esc($unit['code'] ?: '—') ?> · <?= esc($unit['type']) ?></div></div>
             <div style="margin:18px 0;color:var(--text-muted);font-size:13px;"><strong style="font-size:22px;color:var(--text-main);"><?= (int) $unit['employee_count'] ?></strong><br>Pegawai terdaftar</div>
-            <div style="display:flex;gap:9px;">
-                <a class="btn btn-outline" style="text-decoration:none;" href="<?= base_url('/data-pegawai?filter_bangsal=' . rawurlencode($unit['name'])) ?>"><i class="fa-solid fa-users"></i> Lihat pegawai</a>
-                <form method="post" action="<?= base_url('/manajemen-bangsal/' . (int) $unit['id'] . '/status') ?>">
+            <a class="btn btn-outline" style="text-decoration:none;" href="<?= base_url('/data-pegawai?filter_bangsal=' . rawurlencode($unit['name'])) ?>"><i class="fa-solid fa-users"></i> Lihat pegawai</a>
+            <details style="margin-top:12px;">
+                <summary class="btn btn-outline unit-edit-toggle"><i class="fa-solid fa-pen"></i> Edit unit</summary>
+                <form method="post" action="<?= base_url('/manajemen-bangsal/' . (int) $unit['id']) ?>" class="unit-edit-grid">
                     <?= csrf_field() ?>
-                    <input type="hidden" name="is_active" value="<?= (int) $unit['is_active'] === 1 ? '0' : '1' ?>">
-                    <button class="btn btn-outline" type="submit"><?= (int) $unit['is_active'] === 1 ? 'Nonaktifkan' : 'Aktifkan' ?></button>
+                    <div><label class="form-label" for="unit-name-<?= (int) $unit['id'] ?>">Nama unit</label><input class="form-control" id="unit-name-<?= (int) $unit['id'] ?>" name="name" value="<?= esc($unit['name']) ?>" maxlength="120" required></div>
+                    <div><label class="form-label" for="unit-code-<?= (int) $unit['id'] ?>">Kode</label><input class="form-control" id="unit-code-<?= (int) $unit['id'] ?>" name="code" value="<?= esc($unit['code']) ?>" maxlength="80"></div>
+                    <div><label class="form-label" for="unit-type-<?= (int) $unit['id'] ?>">Jenis</label><input class="form-control" id="unit-type-<?= (int) $unit['id'] ?>" name="type" value="<?= esc($unit['type']) ?>" maxlength="30" required></div>
+                    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk"></i> Simpan perubahan</button>
                 </form>
-            </div>
+            </details>
         </article>
     <?php endforeach; ?>
     <?php if ($units === []): ?><div class="main-card" style="grid-column:1/-1;text-align:center;color:var(--text-muted);">Belum ada unit. Tambahkan unit pertama di atas.</div><?php endif; ?>

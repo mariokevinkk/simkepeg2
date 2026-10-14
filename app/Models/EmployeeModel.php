@@ -51,6 +51,11 @@ class EmployeeModel extends Model
         'mitra' => ['Mitra Penuh Waktu', 'Mitra Paruh Waktu'],
     ];
 
+    public static function isAsnType(?string $employmentType): bool
+    {
+        return in_array(trim((string) $employmentType), self::EMPLOYMENT_STATUS_GROUPS['asn'], true);
+    }
+
     public const INACTIVE_EMPLOYEE_STATUSES = [
         'pensiun', 'mutasi keluar', 'habis kontrak', 'mengundurkan diri', 'nonaktif',
     ];

@@ -23,6 +23,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->post('/manajemen-akun/(:num)/status', 'AdminManagementController::updateStatus/$1', ['filter' => 'csrf']);
     $routes->get('/manajemen-bangsal', 'Home::manajemenBangsal');
     $routes->post('/manajemen-bangsal', 'AdminManagementController::createUnit', ['filter' => 'csrf']);
+    $routes->post('/manajemen-bangsal/(:num)', 'AdminManagementController::updateUnit/$1', ['filter' => 'csrf']);
     $routes->post('/manajemen-bangsal/(:num)/status', 'AdminManagementController::updateUnitStatus/$1', ['filter' => 'csrf']);
     $routes->get('/manajemen-jabatan', 'JobTitleController::index');
     $routes->post('/manajemen-jabatan', 'JobTitleController::create', ['filter' => 'csrf']);
