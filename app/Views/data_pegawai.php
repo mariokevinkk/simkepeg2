@@ -7,11 +7,13 @@
     .employee-filter-field label { color:var(--text-main); font-size:12px; font-weight:600; line-height:1.35; }
     .employee-filter-field .form-control { width:100%; }
     .employee-filter-actions { display:flex; flex-wrap:wrap; gap:8px; }
-    .employee-table-wrap { overflow:auto; }
+    .employee-table-wrap { margin-left:-12px; overflow:auto; width:calc(100% + 24px); }
+    .employee-table-wrap .data-table { min-width:1080px; }
+    .employee-table-wrap .data-table td { white-space:normal; }
     .employee-actions { display:flex; gap:7px; }
     .employee-count { color:var(--text-muted); font-size:13px; }
     @media(max-width:1050px) { .employee-filter { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-    @media(max-width:650px) { .employee-filter { grid-template-columns:1fr 1fr; } .employee-filter .search-wide { grid-column:1/-1; } }
+    @media(max-width:650px) { .employee-filter { grid-template-columns:1fr 1fr; } .employee-filter .search-wide { grid-column:1/-1; } .employee-table-wrap { margin-left:0; width:100%; } }
     @media(max-width:420px) { .employee-filter { grid-template-columns:1fr; } .employee-filter .search-wide { grid-column:auto; } }
     .employee-pagination { align-items:center; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; margin:14px 0 0; }
     .employee-pages { display:flex; flex-wrap:wrap; gap:4px; }
@@ -195,9 +197,9 @@ for ($number = 1; $number <= $pagination['pages']; $number++) {
 <p class="employee-count" style="margin:0 0 12px;"><?= $pagination['total'] ?> pegawai<?= $pagination['total'] > 0 ? ' · menampilkan ' . $firstRow . '–' . $lastRow : '' ?></p>
 <div class="main-card employee-table-wrap" style="padding:0;">
     <table class="data-table">
-        <thead><tr><th>Nama / NIP</th><th>Unit</th><th>Jenis ketenagaan</th><th>Status kepegawaian</th><th>Jabatan</th><th>STR &amp; SIP</th><th>Dokumen wajib</th><th>Jenjang</th><th>JPL</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Nama / NIP</th><th>Unit</th><th>Jenis ketenagaan</th><th>Status kepegawaian</th><th>Jabatan / Jenjang</th><th>STR &amp; SIP</th><th>Dokumen wajib</th><th>Aksi</th></tr></thead>
         <tbody>
-        <?php if ($pegawaiList === []): ?><tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);">Belum ada data pegawai yang cocok.</td></tr><?php endif; ?>
+        <?php if ($pegawaiList === []): ?><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">Belum ada data pegawai yang cocok.</td></tr><?php endif; ?>
         <?php foreach ($pegawaiList as $row): ?>
             <?php
             $docs = $row['dokumen'];
@@ -211,7 +213,7 @@ for ($number = 1; $number <= $pagination['pages']; $number++) {
                 <td><?= esc($row['bangsal'] ?: '—') ?></td>
                 <td><?= esc($row['jenis'] ?: '—') ?></td>
                 <td><?= esc($row['status_kep'] ?: '—') ?></td>
-                <td><?= esc($row['jabatan'] ?: '—') ?></td>
+                <td><strong><?= esc($row['jabatan'] ?: '-') ?></strong><div style="font-size:11px;color:var(--text-muted);margin-top:4px;"> <?php if (! empty($row['jenjang'])): ?>Jenjang <?= esc($row['jenjang']) ?> | <?php endif; ?>JPL <?= (int) $row['capaian_jpl'] ?></div></td>
                 <td>
                     <?php if ($strSip === null || (! $strSip['required'] && $strSip['status'] === 'missing')): ?>—
                     <?php elseif ($strSip['status'] === 'missing'): ?><span class="status-badge" style="background:#fee2e2;color:#b91c1c;">Belum diunggah</span>
@@ -240,8 +242,6 @@ for ($number = 1; $number <= $pagination['pages']; $number++) {
                         </details>
                     <?php endif; ?>
                 </td>
-                <td><?= esc($row['jenjang'] ?: '—') ?></td>
-                <td><?= (int) $row['capaian_jpl'] ?></td>
                 <td><div class="employee-actions"><a class="btn btn-outline btn-sm" style="text-decoration:none;" href="<?= base_url('/view-pegawai?id=' . (int) $row['id']) ?>" title="Lihat data"><i class="fa-solid fa-eye"></i></a><?php if (! empty($can_update)): ?><a class="btn btn-outline btn-sm" style="text-decoration:none;" href="<?= base_url('/edit-pegawai?id=' . (int) $row['id']) ?>" title="Ubah data"><i class="fa-solid fa-pen"></i></a><?php endif; ?></div></td>
             </tr>
         <?php endforeach; ?>

@@ -2,12 +2,7 @@
 <?= $this->section('content') ?>
 <?php
 $categoryNames = array_values($categories);
-$statusCounts = array_fill_keys($categoryNames, 0);
-foreach ($inactiveEmployees as $inactiveEmployee) {
-    if (isset($statusCounts[$inactiveEmployee['status_nonaktif']])) {
-        $statusCounts[$inactiveEmployee['status_nonaktif']]++;
-    }
-}
+$statusCounts = $inactiveStatusCounts;
 $statusBadgeClass = static fn (string $status): string => match ($status) {
     'Pensiun' => 'is-pension',
     'Mutasi Keluar' => 'is-transfer',
@@ -70,6 +65,15 @@ $countdown = static function (array $retirement): string {
     .inactive-table-title { align-items:center; display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; padding:17px 20px; }
     .inactive-table-title h2 { color:var(--text-main); font-size:16px; margin:0; }
     .inactive-total { background:var(--primary-light); border-radius:999px; color:var(--primary); font-size:12px; font-weight:700; padding:5px 10px; }
+    .inactive-pagination { align-items:center; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; margin:14px 0 0; }
+    .inactive-pages { display:flex; flex-wrap:wrap; gap:4px; }
+    .inactive-pages a, .inactive-pages span { align-items:center; background:var(--bg-surface); border:1px solid var(--border); border-radius:8px; color:var(--text-main); display:inline-flex; font-size:13px; height:34px; justify-content:center; min-width:34px; padding:0 8px; text-decoration:none; }
+    .inactive-pages a:hover { border-color:var(--primary); color:var(--primary); }
+    .inactive-pages .is-current { background:var(--primary); border-color:var(--primary); color:#fff; font-weight:700; }
+    .inactive-pages .is-disabled { color:var(--text-muted); opacity:.5; }
+    .inactive-pages .is-gap { background:transparent; border-color:transparent; }
+    .inactive-per-page { align-items:center; color:var(--text-muted); display:flex; gap:8px; white-space:nowrap; }
+    .inactive-per-page select { padding:6px 10px; width:auto; }
     .inactive-table { min-width:760px; }
     .inactive-table td { vertical-align:middle; }
     .inactive-person { align-items:center; display:flex; gap:10px; }
@@ -146,7 +150,7 @@ $countdown = static function (array $retirement): string {
         <div class="employee-picker-search"><div class="employee-picker-search-wrap"><i class="fa-solid fa-magnifying-glass"></i><input type="search" class="form-control" id="employee-picker-search" placeholder="Cari nama atau NIP" autocomplete="off"></div></div>
         <div class="employee-picker-list" id="employee-picker-list">
             <?php foreach ($eligibleEmployees as $employee): ?>
-                <div class="employee-picker-row" data-employee-row data-employee-id="<?= (int) $employee['id'] ?>" data-employee-name="<?= esc($employee['nama']) ?>" data-employee-nip="<?= esc($employee['nip']) ?>" data-search="<?= esc(mb_strtolower($employee['nama'] . ' ' . $employee['nip'])) ?>">
+                <div class="employee-picker-row" data-employee-row data-employee-id="<?= (int) $employee['id'] ?>" data-employee-name="<?= esc($employee['nama']) ?>" data-employee-nip="<?= esc($employee['nip']) ?>" data-retirement-eligible="<?= isset($pensionCandidateIds[(int) $employee['id']]) ? 'true' : 'false' ?>" data-search="<?= esc(mb_strtolower($employee['nama'] . ' ' . $employee['nip'])) ?>">
                     <div><div class="employee-picker-name"><?= esc($employee['nama']) ?></div><div class="employee-picker-meta">NIP <?= esc($employee['nip']) ?> · <?= esc($employee['unit_name'] ?? 'Tanpa unit') ?></div></div>
                     <button type="button" class="btn btn-primary btn-sm" data-choose-employee>Pilih</button>
                 </div>
@@ -215,6 +219,27 @@ $countdown = static function (array $retirement): string {
                 bupSettingsPanel.hidden = isExpanded;
             });
         }
+        function updatePickerRows() {
+            const query = employeePickerSearch.value.trim().toLocaleLowerCase();
+            const pension = document.querySelector('input[name="kategori"]:checked')?.value === 'Pensiun';
+            let visibleCount = 0;
+            employeePickerRows.forEach((row) => {
+                const eligibleForCategory = !pension || row.dataset.retirementEligible === 'true';
+                row.hidden = !eligibleForCategory || !row.dataset.search.includes(query);
+                if (!row.hidden) visibleCount++;
+            });
+            employeePickerEmpty.textContent = pension
+                ? 'Tidak ada pegawai yang akan pensiun dalam 24 bulan atau sudah melewati BUP.'
+                : 'Tidak ada pegawai yang cocok.';
+            employeePickerEmpty.classList.toggle('is-visible', visibleCount === 0);
+            if (pension && employeeIdInput.value !== '') {
+                const selectedRow = employeePickerRows.find((row) => row.dataset.employeeId === employeeIdInput.value);
+                if (!selectedRow || selectedRow.dataset.retirementEligible !== 'true') {
+                    employeeIdInput.value = '';
+                    selectedEmployeeLabel.textContent = 'Belum ada pegawai dipilih';
+                }
+            }
+        }
         function selectEmployee(id, name, nip) {
             employeeIdInput.value = id;
             selectedEmployeeLabel.textContent = name + ' · NIP ' + nip;
@@ -229,22 +254,13 @@ $countdown = static function (array $retirement): string {
             employeePicker.classList.add('is-open');
             employeePicker.setAttribute('aria-hidden', 'false');
             employeePickerSearch.value = '';
-            employeePickerRows.forEach((row) => { row.hidden = false; });
-            employeePickerEmpty.classList.toggle('is-visible', employeePickerRows.length === 0);
+            updatePickerRows();
             employeePickerSearch.focus();
         });
         document.querySelectorAll('[data-close-employee-picker]').forEach((button) => button.addEventListener('click', closeEmployeePicker));
         employeePicker.addEventListener('click', (event) => { if (event.target === employeePicker) closeEmployeePicker(); });
         document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeEmployeePicker(); });
-        employeePickerSearch.addEventListener('input', function () {
-            const query = this.value.trim().toLocaleLowerCase();
-            let visibleCount = 0;
-            employeePickerRows.forEach((row) => {
-                row.hidden = !row.dataset.search.includes(query);
-                if (!row.hidden) visibleCount++;
-            });
-            employeePickerEmpty.classList.toggle('is-visible', visibleCount === 0);
-        });
+        employeePickerSearch.addEventListener('input', updatePickerRows);
         employeePickerRows.forEach((row) => row.querySelector('[data-choose-employee]').addEventListener('click', () => {
             selectEmployee(row.dataset.employeeId, row.dataset.employeeName, row.dataset.employeeNip);
         }));
@@ -259,6 +275,7 @@ $countdown = static function (array $retirement): string {
         function updateFormMode() {
             const pension = document.querySelector('input[name="kategori"]:checked')?.value === 'Pensiun';
             pensionPanel.hidden = !pension;
+            updatePickerRows();
         }
         radios.forEach((radio) => radio.addEventListener('change', updateFormMode));
         document.querySelectorAll('[data-select-pension-employee]').forEach((button) => button.addEventListener('click', function () {
@@ -271,8 +288,27 @@ $countdown = static function (array $retirement): string {
     }());
 </script>
 
+<?php
+$inactiveTotal = $inactivePagination['total'];
+$inactiveFirst = $inactiveTotal === 0 ? 0 : ($inactivePagination['page'] - 1) * $inactivePagination['per_page'] + 1;
+$inactiveLast = min($inactiveTotal, $inactivePagination['page'] * $inactivePagination['per_page']);
+$inactivePageUrl = static function (int $page, ?int $perPage = null): string {
+    $query = array_filter(service('request')->getGet() ?? [], static fn ($value): bool => is_scalar($value) && $value !== '');
+    $query['page'] = $page;
+    if ($perPage !== null) {
+        $query['per_page'] = $perPage;
+    }
+    return base_url('/pegawai-nonaktif') . '?' . http_build_query($query);
+};
+$inactivePageNumbers = [];
+for ($number = 1; $number <= $inactivePagination['pages']; $number++) {
+    if ($number === 1 || $number === $inactivePagination['pages'] || abs($number - $inactivePagination['page']) <= 2) {
+        $inactivePageNumbers[] = $number;
+    }
+}
+?>
 <section class="main-card inactive-table-wrap" style="padding:0;">
-    <div class="inactive-table-title"><h2>Daftar pegawai nonaktif</h2><span class="inactive-total"><?= count($inactiveEmployees) ?> pegawai</span></div>
+    <div class="inactive-table-title"><h2>Daftar pegawai nonaktif</h2><span class="inactive-total"><?= $inactiveTotal ?> pegawai</span></div>
     <table class="data-table inactive-table">
         <thead><tr><th>Nama / NIP</th><th>Unit</th><th>Status</th><th>Surat</th><th>Aksi</th></tr></thead>
         <tbody>
@@ -289,4 +325,23 @@ $countdown = static function (array $retirement): string {
         </tbody>
     </table>
 </section>
+<?php if ($inactiveTotal > 0): ?>
+<div class="inactive-pagination">
+    <span style="color:var(--text-muted);font-size:13px;">Menampilkan <?= $inactiveFirst ?>–<?= $inactiveLast ?> dari <?= $inactiveTotal ?> pegawai</span>
+    <nav class="inactive-pages" aria-label="Halaman pegawai nonaktif">
+        <?php if ($inactivePagination['page'] > 1): ?><a href="<?= esc($inactivePageUrl($inactivePagination['page'] - 1)) ?>" aria-label="Halaman sebelumnya"><i class="fa-solid fa-chevron-left"></i></a><?php else: ?><span class="is-disabled" aria-hidden="true"><i class="fa-solid fa-chevron-left"></i></span><?php endif; ?>
+        <?php $previous = 0; foreach ($inactivePageNumbers as $number): ?>
+            <?php if ($number - $previous > 1): ?><span class="is-gap">…</span><?php endif; ?>
+            <?php if ($number === $inactivePagination['page']): ?><span class="is-current" aria-current="page"><?= $number ?></span><?php else: ?><a href="<?= esc($inactivePageUrl($number)) ?>"><?= $number ?></a><?php endif; ?>
+        <?php $previous = $number; endforeach; ?>
+        <?php if ($inactivePagination['page'] < $inactivePagination['pages']): ?><a href="<?= esc($inactivePageUrl($inactivePagination['page'] + 1)) ?>" aria-label="Halaman berikutnya"><i class="fa-solid fa-chevron-right"></i></a><?php else: ?><span class="is-disabled" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span><?php endif; ?>
+    </nav>
+    <label class="inactive-per-page">Tampilkan
+        <select class="form-control" onchange="window.location.href = this.value" aria-label="Jumlah pegawai nonaktif per halaman">
+            <?php foreach ($inactivePagination['per_page_options'] as $option): ?><option value="<?= esc($inactivePageUrl(1, $option)) ?>" <?= $option === $inactivePagination['per_page'] ? 'selected' : '' ?>><?= $option ?></option><?php endforeach; ?>
+        </select>
+        per halaman
+    </label>
+</div>
+<?php endif; ?>
 <?= $this->endSection() ?>

@@ -474,7 +474,7 @@ class Home extends BaseController
         $perPageOptions = [10, 25, 50, 100];
         $perPage = (int) $this->request->getGet('per_page');
         if (! in_array($perPage, $perPageOptions, true)) {
-            $perPage = 25;
+            $perPage = 10;
         }
         $page = max(1, (int) $this->request->getGet('page'));
         $emptySummary = ['entries' => [], 'summary' => ['total' => 0, 'uploaded' => 0, 'pending' => 0, 'missing' => [], 'revisions' => [], 'complete' => true]];
@@ -712,6 +712,24 @@ class Home extends BaseController
         }
         unset($inactiveEmployee);
 
+        $statusCounts = array_fill_keys(array_values($categories), 0);
+        foreach ($inactiveEmployees as $inactiveEmployee) {
+            if (isset($statusCounts[$inactiveEmployee['status_nonaktif']])) {
+                $statusCounts[$inactiveEmployee['status_nonaktif']]++;
+            }
+        }
+
+        $inactiveTotal = count($inactiveEmployees);
+        $perPageOptions = [10, 25, 50, 100];
+        $perPage = (int) $this->request->getGet('per_page');
+        if (! in_array($perPage, $perPageOptions, true)) {
+            $perPage = 10;
+        }
+        $page = max(1, (int) $this->request->getGet('page'));
+        $pages = max(1, (int) ceil($inactiveTotal / $perPage));
+        $page = min($page, $pages);
+        $inactiveEmployees = array_slice($inactiveEmployees, ($page - 1) * $perPage, $perPage);
+
         $pensionCandidates = [];
         foreach ($employees as $employee) {
             if ($this->isInactiveEmployee($employee)) {
@@ -723,6 +741,7 @@ class Home extends BaseController
             }
         }
         usort($pensionCandidates, static fn (array $first, array $second): int => strcmp($first['pensiun']['tmt'], $second['pensiun']['tmt']));
+        $pensionCandidateIds = array_fill_keys(array_map('intval', array_column($pensionCandidates, 'id')), true);
 
         $eligibleEmployees = array_values(array_filter(
             $employees,
@@ -734,8 +753,17 @@ class Home extends BaseController
             'role' => $this->role(),
             'categories' => $categories,
             'inactiveEmployees' => $inactiveEmployees,
+            'inactiveStatusCounts' => $statusCounts,
+            'inactivePagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'per_page_options' => $perPageOptions,
+                'total' => $inactiveTotal,
+                'pages' => $pages,
+            ],
             'eligibleEmployees' => $eligibleEmployees,
             'pensionCandidates' => $pensionCandidates,
+            'pensionCandidateIds' => $pensionCandidateIds,
             'bupSettings' => $bupSettings,
             'can_manage_bup' => ($this->user()['role'] ?? '') === 'superadmin',
             'can_update' => EmployeeAccess::can('employees.update'),
@@ -822,10 +850,28 @@ class Home extends BaseController
         if (! EmployeeAccess::can('documents.manage')) {
             return redirect()->to('/')->with('error', 'Akun Anda tidak memiliki hak untuk memverifikasi dokumen.');
         }
+        $perPageOptions = [10, 25, 50, 100];
+        $perPage = (int) $this->request->getGet('per_page');
+        if (! in_array($perPage, $perPageOptions, true)) {
+            $perPage = 10;
+        }
+        $page = max(1, (int) $this->request->getGet('page'));
+        $documents = new EmployeeDocumentModel();
+        $total = $documents->countPendingUploadsFor($this->user());
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $pages);
+
         return view('aktivitas', [
             'active_menu' => 'aktivitas',
             'role' => $this->role(),
-            'pendingDocuments' => (new EmployeeDocumentModel())->pendingUploadsFor($this->user()),
+            'pendingDocuments' => $documents->pendingUploadsFor($this->user(), $perPage, ($page - 1) * $perPage),
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'per_page_options' => $perPageOptions,
+                'total' => $total,
+                'pages' => $pages,
+            ],
         ]);
     }
 }

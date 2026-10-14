@@ -365,7 +365,7 @@ class EmployeeDocumentModel extends Model
         return ['verified' => $verified, 'total' => $total, 'follow_up' => max(0, $total - $verified)];
     }
 
-    public function pendingUploadsFor(array $user): array
+    private function pendingUploadsQuery(array $user)
     {
         $builder = $this->db->table('employee_documents')
             ->select('employee_documents.*, employees.nama AS employee_name, employees.nip, employees.unit_id, units.name AS unit_name')
@@ -377,13 +377,35 @@ class EmployeeDocumentModel extends Model
         if (($user['role'] ?? '') === 'admin_unit') {
             $unitIds = array_map('intval', $user['unit_ids'] ?? []);
             if ($unitIds === []) {
-                return [];
+                return null;
             }
             $builder->whereIn('employees.unit_id', $unitIds);
         } elseif (($user['role'] ?? '') === 'pegawai') {
             $builder->where('employees.user_id', (int) ($user['id'] ?? 0));
         }
 
-        return $builder->orderBy('employee_documents.updated_at', 'DESC')->get()->getResultArray();
+        return $builder;
+    }
+
+    public function countPendingUploadsFor(array $user): int
+    {
+        $builder = $this->pendingUploadsQuery($user);
+
+        return $builder === null ? 0 : (int) $builder->countAllResults();
+    }
+
+    public function pendingUploadsFor(array $user, ?int $limit = null, int $offset = 0): array
+    {
+        $builder = $this->pendingUploadsQuery($user);
+        if ($builder === null) {
+            return [];
+        }
+
+        // Keep the activity log chronological: older uploads appear first and newer uploads last.
+        $builder->orderBy('employee_documents.updated_at', 'ASC')
+            ->orderBy('employee_documents.id', 'ASC');
+        $query = $limit === null ? $builder->get() : $builder->get($limit, max(0, $offset));
+
+        return $query->getResultArray();
     }
 }

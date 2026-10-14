@@ -505,6 +505,15 @@ class EmployeeController extends BaseController
         if (! isset($categories[$category])) {
             return redirect()->to($redirectUrl)->with('error', 'Kategori pegawai nonaktif tidak valid.');
         }
+        if ($category === 'Pensiun') {
+            $retirementInfo = EmployeeProfileData::retirementInfo($employee, null, (new RetirementBupModel())->ages());
+            $inactiveStatuses = EmployeeModel::INACTIVE_EMPLOYEE_STATUSES;
+            $alreadyInactive = in_array(mb_strtolower(trim((string) ($employee['employee_status'] ?? ''))), $inactiveStatuses, true)
+                || in_array(mb_strtolower(trim((string) ($employee['kedudukan'] ?? ''))), $inactiveStatuses, true);
+            if ($alreadyInactive || $retirementInfo === null || $retirementInfo['months_left'] > 24) {
+                return redirect()->to($redirectUrl)->with('error', 'Status Pensiun hanya dapat dipilih untuk pegawai yang akan pensiun dalam 24 bulan atau sudah melewati BUP.');
+            }
+        }
 
         $file = $this->request->getFile('surat');
         $directory = WRITEPATH . 'uploads' . DIRECTORY_SEPARATOR . 'employee-documents' . DIRECTORY_SEPARATOR . $employeeId;

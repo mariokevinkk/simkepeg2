@@ -11,8 +11,18 @@
     .revision-quick { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 4px; }
     .revision-quick button { background:var(--bg-body); border:1px solid var(--border); border-radius:999px; color:var(--text-main); cursor:pointer; font-size:12px; padding:4px 10px; }
     .revision-quick button:hover { border-color:var(--primary); color:var(--primary); }
+    .activity-pagination { align-items:center; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; margin:14px 0 0; }
+    .activity-pages { display:flex; flex-wrap:wrap; gap:4px; }
+    .activity-pages a, .activity-pages span { align-items:center; background:var(--bg-surface); border:1px solid var(--border); border-radius:8px; color:var(--text-main); display:inline-flex; font-size:13px; height:34px; justify-content:center; min-width:34px; padding:0 8px; text-decoration:none; }
+    .activity-pages a:hover { border-color:var(--primary); color:var(--primary); }
+    .activity-pages .is-current { background:var(--primary); border-color:var(--primary); color:#fff; font-weight:700; }
+    .activity-pages .is-disabled { color:var(--text-muted); opacity:.5; }
+    .activity-pages .is-gap { background:transparent; border-color:transparent; }
+    .activity-per-page { align-items:center; color:var(--text-muted); display:flex; gap:8px; white-space:nowrap; }
+    .activity-per-page select { padding:6px 10px; width:auto; }
+    @media(max-width:650px) { .activity-pagination { justify-content:center; } }
 </style>
-<div style="margin-bottom:20px;"><h1 class="page-title" style="margin:0;">Verifikasi Dokumen</h1><p style="color:var(--text-muted);font-size:13px;margin:6px 0 0;">Unggahan pegawai dalam cakupan unit Anda yang menunggu verifikasi. Jika dokumen perlu diperbaiki, tuliskan catatannya; pegawai akan melihat catatan itu pada dokumennya.</p></div>
+<div style="margin-bottom:20px;"><h1 class="page-title" style="margin:0;">Verifikasi Dokumen</h1><p style="color:var(--text-muted);font-size:13px;margin:6px 0 0;">Unggahan pegawai dalam cakupan unit Anda yang menunggu verifikasi. Jika dokumen perlu diperbaiki, tuliskan catatannya; pegawai akan melihat catatan itu pada dokumennya. Daftar diurutkan dari unggahan paling lama ke terbaru.</p></div>
 <?php if ($error = session()->getFlashdata('error')): ?><div class="main-card" style="margin-bottom:14px;color:var(--danger);padding:12px 16px;"><?= esc($error) ?></div><?php endif; ?>
 <?php if ($success = session()->getFlashdata('success')): ?><div class="main-card" style="margin-bottom:14px;color:var(--success);padding:12px 16px;"><?= esc($success) ?></div><?php endif; ?>
 <div class="main-card" style="padding:0;overflow:hidden;">
@@ -46,6 +56,43 @@
         </tbody>
     </table></div>
 </div>
+<?php
+$firstRow = $pagination['total'] === 0 ? 0 : ($pagination['page'] - 1) * $pagination['per_page'] + 1;
+$lastRow = min($pagination['total'], $pagination['page'] * $pagination['per_page']);
+$pageUrl = static function (int $page, ?int $perPage = null): string {
+    $query = array_filter(service('request')->getGet() ?? [], static fn ($value): bool => is_scalar($value) && $value !== '');
+    $query['page'] = $page;
+    if ($perPage !== null) {
+        $query['per_page'] = $perPage;
+    }
+    return base_url('/aktivitas') . '?' . http_build_query($query);
+};
+$pageNumbers = [];
+for ($number = 1; $number <= $pagination['pages']; $number++) {
+    if ($number === 1 || $number === $pagination['pages'] || abs($number - $pagination['page']) <= 2) {
+        $pageNumbers[] = $number;
+    }
+}
+?>
+<?php if ($pagination['total'] > 0): ?>
+<div class="activity-pagination">
+    <span style="color:var(--text-muted);font-size:13px;">Menampilkan <?= $firstRow ?>–<?= $lastRow ?> dari <?= $pagination['total'] ?> unggahan</span>
+    <nav class="activity-pages" aria-label="Halaman aktivitas">
+        <?php if ($pagination['page'] > 1): ?><a href="<?= esc($pageUrl($pagination['page'] - 1)) ?>" aria-label="Halaman sebelumnya"><i class="fa-solid fa-chevron-left"></i></a><?php else: ?><span class="is-disabled" aria-hidden="true"><i class="fa-solid fa-chevron-left"></i></span><?php endif; ?>
+        <?php $previous = 0; foreach ($pageNumbers as $number): ?>
+            <?php if ($number - $previous > 1): ?><span class="is-gap">…</span><?php endif; ?>
+            <?php if ($number === $pagination['page']): ?><span class="is-current" aria-current="page"><?= $number ?></span><?php else: ?><a href="<?= esc($pageUrl($number)) ?>"><?= $number ?></a><?php endif; ?>
+        <?php $previous = $number; endforeach; ?>
+        <?php if ($pagination['page'] < $pagination['pages']): ?><a href="<?= esc($pageUrl($pagination['page'] + 1)) ?>" aria-label="Halaman berikutnya"><i class="fa-solid fa-chevron-right"></i></a><?php else: ?><span class="is-disabled" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span><?php endif; ?>
+    </nav>
+    <label class="activity-per-page">Tampilkan
+        <select class="form-control" onchange="window.location.href = this.value" aria-label="Jumlah aktivitas per halaman">
+            <?php foreach ($pagination['per_page_options'] as $option): ?><option value="<?= esc($pageUrl(1, $option)) ?>" <?= $option === $pagination['per_page'] ? 'selected' : '' ?>><?= $option ?></option><?php endforeach; ?>
+        </select>
+        per halaman
+    </label>
+</div>
+<?php endif; ?>
 
 <div class="revision-modal" id="revision-modal" role="dialog" aria-modal="true" aria-labelledby="revision-title">
     <form class="revision-dialog" method="post" action="">
