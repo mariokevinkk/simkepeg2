@@ -719,7 +719,7 @@ $authRoleLabel = match ($authUser['role'] ?? '') {
             <?php endif; ?>
             
             <div class="nav-label">Settings</div>
-            <?php if(in_array($role ?? '', ['superadmin', 'admin'], true)): ?>
+            <?php if(! isset($role) || $role === 'superadmin'): ?>
             <a href="<?= base_url('/manajemen-jabatan') ?>" class="nav-item <?= ($active_menu == 'manajemen-jabatan') ? 'active' : '' ?>">
                 <i class="fa-solid fa-briefcase-medical"></i> Manajemen Jabatan
             </a>

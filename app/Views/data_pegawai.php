@@ -8,7 +8,7 @@
     .employee-filter-field .form-control { width:100%; }
     .employee-filter-actions { display:flex; flex-wrap:wrap; gap:8px; }
     .employee-table-wrap { margin-left:-12px; overflow:auto; width:calc(100% + 24px); }
-    .employee-table-wrap .data-table { min-width:1080px; }
+    .employee-table-wrap .data-table { min-width:1200px; }
     .employee-table-wrap .data-table td { white-space:normal; }
     .employee-actions { display:flex; gap:7px; }
     .employee-count { color:var(--text-muted); font-size:13px; }
@@ -197,16 +197,14 @@ for ($number = 1; $number <= $pagination['pages']; $number++) {
 <p class="employee-count" style="margin:0 0 12px;"><?= $pagination['total'] ?> pegawai<?= $pagination['total'] > 0 ? ' · menampilkan ' . $firstRow . '–' . $lastRow : '' ?></p>
 <div class="main-card employee-table-wrap" style="padding:0;">
     <table class="data-table">
-        <thead><tr><th>Nama / NIP</th><th>Unit</th><th>Jenis ketenagaan</th><th>Status kepegawaian</th><th>Jabatan / Jenjang</th><th>STR &amp; SIP</th><th>Dokumen wajib</th><th>Aksi</th></tr></thead>
+        <thead><tr><th>Nama / NIP</th><th>Unit</th><th>Jenis ketenagaan</th><th>Status kepegawaian</th><th>Jabatan / Jenjang</th><th>STR</th><th>SIP</th><th>Dokumen wajib</th><th>Aksi</th></tr></thead>
         <tbody>
-        <?php if ($pegawaiList === []): ?><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">Belum ada data pegawai yang cocok.</td></tr><?php endif; ?>
+        <?php if ($pegawaiList === []): ?><tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">Belum ada data pegawai yang cocok.</td></tr><?php endif; ?>
         <?php foreach ($pegawaiList as $row): ?>
             <?php
             $docs = $row['dokumen'];
             $missingDocs = $docs['missing'];
-            $strSip = $row['str_sip'];
-            $expiry = ! empty($strSip['expires_at']) ? strtotime($strSip['expires_at']) : false;
-            $daysLeft = $expiry === false ? null : (int) floor(($expiry - strtotime(date('Y-m-d'))) / 86400);
+            $licenseColumns = ['STR' => $row['str'], 'SIP' => $row['sip']];
             ?>
             <tr>
                 <td><strong><?= esc($row['nama']) ?></strong><div style="font-size:12px;color:var(--text-muted);margin-top:4px;"><?= esc($row['nip']) ?></div></td>
@@ -214,14 +212,35 @@ for ($number = 1; $number <= $pagination['pages']; $number++) {
                 <td><?= esc($row['jenis'] ?: '—') ?></td>
                 <td><?= esc($row['status_kep'] ?: '—') ?></td>
                 <td><strong><?= esc($row['jabatan'] ?: '-') ?></strong><div style="font-size:11px;color:var(--text-muted);margin-top:4px;"> <?php if (! empty($row['jenjang'])): ?>Jenjang <?= esc($row['jenjang']) ?> | <?php endif; ?>JPL <?= (int) $row['capaian_jpl'] ?></div></td>
-                <td>
-                    <?php if ($strSip === null || (! $strSip['required'] && $strSip['status'] === 'missing')): ?>—
-                    <?php elseif ($strSip['status'] === 'missing'): ?><span class="status-badge" style="background:#fee2e2;color:#b91c1c;">Belum diunggah</span>
-                    <?php elseif ($daysLeft !== null): ?>
-                        <div style="font-size:11px;color:var(--text-muted);">Jatuh tempo <?= esc(date('d-m-Y', $expiry)) ?></div>
-                        <span class="status-badge <?= $daysLeft < 0 || $daysLeft <= 30 ? '' : 'status-active' ?>" style="display:inline-block;margin-top:5px;<?= $daysLeft < 0 ? 'background:#fee2e2;color:#b91c1c;' : ($daysLeft <= 30 ? 'background:#fef3c7;color:#a16207;' : '') ?>"><?= $daysLeft < 0 ? 'Kedaluwarsa' : ($daysLeft <= 30 ? 'Segera diperbarui' : 'Aktif') ?></span>
-                    <?php else: ?><span style="font-size:11px;color:var(--text-muted);">Diunggah, tanpa tanggal berlaku</span><?php endif; ?>
-                </td>
+                <?php foreach ($licenseColumns as $license): ?>
+                    <td>
+                        <?php
+                        $licenseStatus = (string) ($license['status'] ?? 'missing');
+                        $expiryValue = trim((string) ($license['expires_at'] ?? ''));
+                        $expiry = $expiryValue !== '' ? strtotime($expiryValue) : false;
+                        $daysLeft = $expiry === false ? null : (int) floor(($expiry - strtotime(date('Y-m-d'))) / 86400);
+                        $licenseLabel = match (true) {
+                            $licenseStatus === 'missing' => 'Belum diunggah',
+                            $licenseStatus === 'rejected' => 'Perlu perbaikan',
+                            $licenseStatus === 'expired' || ($daysLeft !== null && $daysLeft < 0) => 'Kedaluwarsa',
+                            $licenseStatus === 'pending' => 'Menunggu verifikasi',
+                            $daysLeft !== null && $daysLeft <= 30 => 'Segera diperbarui',
+                            default => 'Aktif',
+                        };
+                        $licenseStyle = match ($licenseLabel) {
+                            'Belum diunggah', 'Perlu perbaikan', 'Kedaluwarsa' => 'background:#fee2e2;color:#b91c1c;',
+                            'Segera diperbarui' => 'background:#fef3c7;color:#a16207;',
+                            'Menunggu verifikasi' => 'background:#e0f2fe;color:#0369a1;',
+                            default => '',
+                        };
+                        ?>
+                        <?php if ($license === null || (! $license['required'] && $licenseStatus === 'missing')): ?>—
+                        <?php else: ?>
+                            <?php if ($expiry !== false): ?><div style="font-size:11px;color:var(--text-muted);">Jatuh tempo <?= esc(date('d-m-Y', $expiry)) ?></div><?php elseif ($licenseStatus === 'verified'): ?><div style="font-size:11px;color:var(--text-muted);">Tanpa tanggal berlaku</div><?php endif; ?>
+                            <span class="status-badge <?= $licenseLabel === 'Aktif' ? 'status-active' : '' ?>" style="display:inline-block;margin-top:5px;<?= $licenseStyle ?>"><?= esc($licenseLabel) ?></span>
+                        <?php endif; ?>
+                    </td>
+                <?php endforeach; ?>
                 <td>
                     <div style="font-weight:700;white-space:nowrap;color:<?= $docs['complete'] ? 'var(--success)' : 'var(--danger)' ?>;"><i class="fa-solid fa-paperclip"></i> <?= (int) $docs['uploaded'] ?> / <?= (int) $docs['total'] ?></div>
                     <?php if ($missingDocs === []): ?>

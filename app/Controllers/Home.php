@@ -508,7 +508,7 @@ class Home extends BaseController
         foreach ($pageEmployees as $employee) {
             $checklist = $checklists[(int) $employee['id']] ?? $emptySummary;
             $workforce = trim((string) ($employee['jenis_ketenagaan'] ?? ''));
-            // Use separate STR/SIP entries, while the list keeps one compact combined status.
+            // Keep each professional license independent in the employee list.
             $licenses = ['str' => null, 'sip' => null];
             foreach ($checklist['entries'] as $entry) {
                 $licenseKey = match ($entry['item']['id']) {
@@ -528,29 +528,6 @@ class Home extends BaseController
                         : ($entry['row']['expires_at'] ?? null),
                 ];
             }
-            $visibleLicenses = array_values(array_filter(
-                $licenses,
-                static fn ($license): bool => is_array($license) && (! empty($license['required']) || ($license['status'] ?? 'missing') !== 'missing'),
-            ));
-            $expiryDates = array_values(array_filter(array_column($visibleLicenses, 'expires_at')));
-            sort($expiryDates);
-            $hasRequiredMissingLicense = count(array_filter(
-                $visibleLicenses,
-                static fn (array $license): bool => ! empty($license['required']) && ($license['status'] ?? '') === 'missing',
-            )) > 0;
-            $hasExpiredLicense = count(array_filter(
-                $visibleLicenses,
-                static fn (array $license): bool => ($license['status'] ?? '') === 'expired',
-            )) > 0;
-            $hasPendingLicense = count(array_filter(
-                $visibleLicenses,
-                static fn (array $license): bool => ($license['status'] ?? '') === 'pending',
-            )) > 0;
-            $strSip = $visibleLicenses === [] ? null : [
-                'required' => count(array_filter($visibleLicenses, static fn (array $license): bool => ! empty($license['required']))) > 0,
-                'status' => $hasRequiredMissingLicense ? 'missing' : ($hasExpiredLicense ? 'expired' : ($hasPendingLicense ? 'pending' : 'verified')),
-                'expires_at' => $expiryDates[0] ?? null,
-            ];
             $row = [
                 'id' => (int) $employee['id'],
                 'nama' => $employee['nama'],
@@ -561,7 +538,8 @@ class Home extends BaseController
                 'jabatan' => $employee['jabatan_nama'],
                 'jenjang' => $employee['jenjang_jabatan'],
                 'jenis_jenjang' => str_contains(strtolower($employee['jenjang_jabatan']), 'ahli') ? 'Ahli' : ($employee['jenjang_jabatan'] !== '' ? 'Terampil' : '-'),
-                'str_sip' => $strSip,
+                'str' => $licenses['str'],
+                'sip' => $licenses['sip'],
                 'capaian_jpl' => (int) $employee['jpl_completed'],
                 'dokumen' => $checklist['summary'],
             ];

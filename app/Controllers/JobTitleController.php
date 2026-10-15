@@ -7,9 +7,9 @@ use App\Models\JobTitleModel;
 
 class JobTitleController extends BaseController
 {
-    private function requireAdmin()
+    private function requireSuperAdmin()
     {
-        if (! in_array(EmployeeAccess::user()['role'] ?? '', ['superadmin', 'admin_unit'], true)) {
+        if ((EmployeeAccess::user()['role'] ?? '') !== 'superadmin') {
             return redirect()->to('/');
         }
 
@@ -18,7 +18,7 @@ class JobTitleController extends BaseController
 
     public function index()
     {
-        if ($denied = $this->requireAdmin()) {
+        if ($denied = $this->requireSuperAdmin()) {
             return $denied;
         }
 
@@ -33,13 +33,13 @@ class JobTitleController extends BaseController
             'active_menu' => 'manajemen-jabatan',
             'role' => $user['role'] === 'superadmin' ? 'superadmin' : 'admin',
             'groups' => $groups,
-            'can_manage_status' => in_array($user['role'] ?? '', ['superadmin', 'admin_unit'], true),
+            'can_manage_status' => ($user['role'] ?? '') === 'superadmin',
         ]);
     }
 
     public function create()
     {
-        if ($denied = $this->requireAdmin()) {
+        if ($denied = $this->requireSuperAdmin()) {
             return $denied;
         }
 
@@ -71,7 +71,7 @@ class JobTitleController extends BaseController
 
     public function updateStatus(int $jobId)
     {
-        if ($denied = $this->requireAdmin()) {
+        if ($denied = $this->requireSuperAdmin()) {
             return $denied;
         }
         $model = new JobTitleModel();
